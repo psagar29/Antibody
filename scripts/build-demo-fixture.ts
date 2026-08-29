@@ -30,7 +30,7 @@ interface FixtureExpected {
 }
 
 function data(value: string): string {
-  return `data ${Buffer.byteLength(value, 'utf8')}\n${value}\n`;
+  return `data ${String(Buffer.byteLength(value, 'utf8'))}\n${value}\n`;
 }
 
 function fileCommands(files: readonly CommitFile[]): string {
@@ -46,12 +46,12 @@ function commit(options: {
   readonly message: string;
   readonly files: readonly CommitFile[];
 }): string {
-  const parent = options.parentMark === undefined ? '' : `from :${options.parentMark}\n`;
+  const parent = options.parentMark === undefined ? '' : `from :${String(options.parentMark)}\n`;
   return [
     'commit refs/heads/main\n',
-    `mark :${options.mark}\n`,
-    `author ${identity} ${options.timestamp} +0000\n`,
-    `committer ${identity} ${options.timestamp} +0000\n`,
+    `mark :${String(options.mark)}\n`,
+    `author ${identity} ${String(options.timestamp)} +0000\n`,
+    `committer ${identity} ${String(options.timestamp)} +0000\n`,
     data(options.message),
     parent,
     fileCommands(options.files),
