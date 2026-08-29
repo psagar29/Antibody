@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "antibody.demo-history/v1",
+  "shas": {
+    "base": "9b8f9fa076c388ff0ad8bb5efa5b9ac1a194a914",
+    "docs": "d876b07424673876c5ce2935b76541d2e1f7ac4b",
+    "fix": "25a98c3d64d7e103fb8a56b87481c89d5fe5b984",
+    "head": "63e56b20f197f3dc590682c373de00c6a9609153"
+  },
+  "candidateOrder": [
+    "25a98c3d64d7e103fb8a56b87481c89d5fe5b984",
+    "63e56b20f197f3dc590682c373de00c6a9609153"
+  ],
+  "candidateId": "sha256:9fb167bcb29c86fb8c491a1489690ef1f074fbecd6b3919545ac79433959a032",
+  "patchSha256": "sha256:46db7f92dca36fe65ed0f88567850e4f917990790e9f463f5a0625a4ac9fddca",
+  "normalizedParentSignature": "sha256:a2b979da9c050c835f6cbc7016f6c48be7bd49d28fe72a1165374b3a541c73b2",
+  "changedPaths": [
+    "test/slug.test.js"
+  ],
+  "verdict": "verified"
+}

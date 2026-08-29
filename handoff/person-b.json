@@ -1,0 +1,163 @@
+{
+  "schemaVersion": "antibody.handoff/v1",
+  "owner": "person-b",
+  "branch": "person-b-v2",
+  "baseCommit": "3c0076aa38fe10eb0cc892f9156ca9aa6ee2ee10",
+  "headCommit": "c49b29f1be9bb68495af600f75e92a9e42ae3843",
+  "ownedPaths": [
+    "src/core/**",
+    "src/adapters/git/**",
+    "src/adapters/github/**",
+    "test/core/**",
+    "test/adapters/git/**",
+    "test/adapters/github/**",
+    "fixtures/demo-history/**",
+    "scripts/build-demo-fixture.ts",
+    "docs/domain-model.md",
+    "docs/real-repo-p-timeout.md",
+    "handoff/person-b.json"
+  ],
+  "commits": [
+    {
+      "sha": "d45e3724664ae6bcef03dc14a43e2fe31d5bc158",
+      "subject": "test: add deterministic missing-test history fixture"
+    },
+    {
+      "sha": "0252e7f740d264115464f525f1f1907da0528a63",
+      "subject": "feat: implement history miner and candidate ranker"
+    },
+    {
+      "sha": "f39d9d66d4128c85cd735406b69799aea616afc8",
+      "subject": "feat: enforce test-only patch policy"
+    },
+    {
+      "sha": "b1f8fdc50f5fae2125ba1eb25b236281d266fe28",
+      "subject": "feat: add bounded Codex authoring loop"
+    },
+    {
+      "sha": "33739ca9e83806706c88d53d78eab1bdc3adb14c",
+      "subject": "feat: classify and adjudicate causal evidence"
+    },
+    {
+      "sha": "4e31e518509514f67bf8b821aa3ec8e92790c2ef",
+      "subject": "feat: build canonical receipts and tamper verification"
+    },
+    {
+      "sha": "d4718863fe259f70e747314af9971464a8d63a3f",
+      "subject": "feat: add idempotent GitHub draft publisher"
+    },
+    {
+      "sha": "a3d1048a7f6faed3131d831e35c29702e550d464",
+      "subject": "feat: compose end-to-end recovery domain flow"
+    },
+    {
+      "sha": "469c38059807e3b8619f8750112a7673d3cf7235",
+      "subject": "docs: specify domain and p-timeout demo"
+    },
+    {
+      "sha": "4d9d404f40b7b5b8f9486d102d5d6087f53af9fc",
+      "subject": "test: harden domain failure boundaries"
+    },
+    {
+      "sha": "5a927f30137d9924bbe0d27e17c094ced223de6d",
+      "subject": "chore: add Person B handoff manifest"
+    },
+    {
+      "sha": "c49b29f1be9bb68495af600f75e92a9e42ae3843",
+      "subject": "merge: reconcile Person B implementations"
+    }
+  ],
+  "contractsConsumed": [
+    "antibody.candidate/v1",
+    "antibody.agent-invocation/v1",
+    "antibody.agent-result/v1",
+    "antibody.agent-output/v1",
+    "antibody.verification-request/v1",
+    "antibody.raw-evidence/v1",
+    "antibody.receipt/v1",
+    "antibody.publication/v1",
+    "antibody.handoff/v1"
+  ],
+  "commandsRun": [
+    "git fetch origin --tags && git switch team/person-b-core && git pull --ff-only origin team/person-b-core",
+    "git merge --no-commit --no-ff -X theirs origin/team/person-b-core",
+    "git branch -m person-b-v2 && git branch --unset-upstream",
+    "pnpm install --frozen-lockfile",
+    "pnpm check",
+    "node --experimental-strip-types scripts/build-demo-fixture.ts",
+    "pnpm exec vitest run test/adapters/git/miner.test.ts test/core/classification.test.ts",
+    "pnpm typecheck",
+    "pnpm lint",
+    "pnpm build",
+    "npm install --ignore-scripts --no-package-lock --no-audit --no-fund (p-timeout temporary rehearsal checkout)",
+    "npx ava test.js --match='calls custom timers without a receiver' (p-timeout parent, fix, and current head)"
+  ],
+  "testResults": [
+    {
+      "name": "Person B focused suite",
+      "passed": true,
+      "details": "2 focused files and 21 tests passed, including unconditional rejection of test-touching mined commits and cross-platform failure-signature normalization."
+    },
+    {
+      "name": "Full repository check",
+      "passed": true,
+      "details": "pnpm check passed schema generation verification, ESLint, strict TypeScript, 11 test files and 91 tests, and the production ESM/declaration build."
+    },
+    {
+      "name": "TypeScript strict typecheck",
+      "passed": true,
+      "details": "pnpm typecheck completed with no errors."
+    },
+    {
+      "name": "ESLint",
+      "passed": true,
+      "details": "pnpm lint completed with no errors."
+    },
+    {
+      "name": "Production build",
+      "passed": true,
+      "details": "pnpm build completed ESM, source-map, and declaration builds."
+    },
+    {
+      "name": "p-timeout causal rehearsal",
+      "passed": true,
+      "details": "Exact regression test exited 1 on f9ced5e18ad81eab24a9a8d0f07bf3002f7bea64 and exited 0 on ed58372c62d3dddfe6f58de37558fb132e1a4e9b and 245066ef7daa5e74024d5b6a188ae599a1b7bfdf."
+    }
+  ],
+  "liveChecks": [
+    {
+      "name": "Public p-timeout local parent/fix/head rehearsal",
+      "status": "passed",
+      "artifact": "docs/real-repo-p-timeout.md"
+    },
+    {
+      "name": "GitHub draft publication with live write token",
+      "status": "not-run",
+      "artifact": "Fake-control coverage only; no remote branch or PR was created."
+    },
+    {
+      "name": "Runloop and Reflex production ports",
+      "status": "not-run",
+      "artifact": "Person A and Person C own live provider access and composition."
+    }
+  ],
+  "requiredEnvironmentNames": [
+    "GITHUB_TOKEN"
+  ],
+  "knownIssues": [
+    "No live GitHub write was attempted; draft, label-permission, stale-head, conflict, dedupe, and partial-failure behavior is verified with an injected typed fake only.",
+    "No live Runloop or Reflex call was made on this branch; Person B consumes only the frozen ports.",
+    "The Person B prompt references two README-linked research reports, but this baseline contains neither report files nor README links.",
+    "The reconciliation merge preserves both independent Person B histories, while the final tree uses the previously published implementation as the canonical module layout plus the stricter mining and normalization tests.",
+    "headCommit records the final implementation commit immediately before this manifest-only commit, avoiding an impossible self-referential Git SHA."
+  ],
+  "integrationInstructions": [
+    "Person C should export or import the owned modules from its composition root without editing Person B paths.",
+    "Construct RecoveryCoordinator with Person A AgentSessionPort and VerificationExecutionPort implementations; pass resolved immutable verification environment IDs and reporter target names.",
+    "Use FileReceiptStore with the same Redactor configuration passed to receipt construction so persisted raw-evidence hashes remain consistent.",
+    "Materialize approved final UTF-8 test-file contents from the validated patch before calling GitHubDraftPublisher; its file path set must exactly match receipt.patch.changedPaths.",
+    "Load GITHUB_TOKEN only in the publish composition path with Contents read/write and Pull requests write; do not grant merge, Actions, or administration permissions.",
+    "Run the live p-timeout proof twice in one prewarmed historical Snapshot and verify every Devbox cleanup record before presenting or publishing."
+  ],
+  "contractChangeRequests": []
+}

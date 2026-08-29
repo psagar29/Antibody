@@ -1,0 +1,12 @@
+diff --git a/test/slug.test.js b/test/slug.test.js
+index 9867f4e..5132949 100644
+--- a/test/slug.test.js
++++ b/test/slug.test.js
+@@ -6,3 +6,7 @@ import {slugify} from '../src/slug.js';
+ test('slugifies two words', () => {
+   assert.equal(slugify('Hello World'), 'hello-world');
+ });
++
++test('collapses repeated whitespace', () => {
++  assert.equal(slugify('Hello   World'), 'hello-world');
++});
