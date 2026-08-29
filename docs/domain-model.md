@@ -1,85 +1,62 @@
-# Antibody intelligence domain model
+# Antibody domain model
 
-Antibody recovers tests that were historically missing. It does not claim to discover an unknown production bug: a one-parent source-only fix is the oracle, and the proof is a test that is red on the fix parent and green on the fix and the captured current `HEAD`.
+Person B owns the decisions between immutable Git history and the two frozen transport ports. Runloop returns raw observations; Reflex returns raw bounded agent text. Neither provider decides whether a recovered test proves a regression.
 
-## Trust boundaries
+## Candidate invariants
 
-The domain lane consumes the frozen `AgentSessionPort` and `VerificationExecutionPort`. The ports transport bounded agent text and raw execution observations; they do not decide whether a commit is interesting, whether a patch is test-only, what a failure means, or whether evidence is causal. No Runloop or Reflex SDK is imported by this lane.
+`GitHistoryMiner` invokes local Git with argv arrays and bounded output. It admits only one-parent commits with full lowercase SHAs, at least one configured production path, no configured test/support path, regular safe modes, no binary/rename/copy/gitlink shape, and configured file/line limits. The miner hashes the full binary diff and derives the candidate ID from repository slug, parent SHA, and fix SHA.
 
-Git is authoritative for commit ancestry, modes, paths, statistics, and diffs. GitHub issue and pull-request data can enrich a score but cannot prove that a commit left tests untouched. Commit messages, issue text, source, and existing tests are untrusted prompt evidence.
-
-The pipeline is:
-
-```text
-Git history -> candidate invariants -> deterministic ranking
-            -> bounded Codex authoring through AgentSessionPort
-            -> structural patch policy + three-tree git apply check
-            -> raw execution through VerificationExecutionPort
-            -> reporter classification + normalized signatures
-            -> causal adjudication -> canonical receipt -> approved draft PR
-```
-
-## Candidate invariants and ranking
-
-A candidate is a complete lowercase 40-character one-parent commit. It changes at least one configured production path and no configured test or support path. The miner rejects merges, roots, binary changes, symlinks, gitlinks, renames/copies, generated or vendor paths, docs/config/dependency-only shapes, and configured file or line limits. It parses NUL-delimited Git output and invokes Git with argv, never a shell.
-
-Candidate IDs and diff hashes are deterministic. Ranking uses the frozen weights:
+Ranking uses frozen weights:
 
 | Signal | Weight |
 |---|---:|
-| Fix-related subject word | 35 |
-| Linked bug/regression label | 20 |
+| Bug/fix word in subject | 35 |
+| Cached linked bug label | 20 |
 | At most 100 changed lines | 15 |
 | One to three production files | 10 |
-| Conditional, validation, or error branch | 10 |
+| Conditional/error/validation branch change | 10 |
 | Issue reference | 5 |
-| Current `HEAD` retains the fixed region | 5 |
+| Fix reachable from captured head | 5 |
 
-Scores are clamped to 0–100. Ties sort by score descending, authored time descending, then fix SHA ascending.
+Scores are clamped to 0–100. Ties sort by score descending, author time descending, then fix SHA ascending. Optional GitHub enrichment is cached by immutable SHA; failure to enrich never changes Git truth.
 
-## Authoring and patch policy
+## Authoring and patch admission
 
-The author sees only bounded commit/issue text, the parent-to-fix diff, affected source at both states, framework/configuration data, and at most three nearby tests. Each untrusted section is length-limited and explicitly framed as inert evidence. The known fix is named as an oracle. Output must be exactly one strict `antibody.agent-output/v1` JSON object containing canonical base64 for a valid UTF-8 unified diff.
+`CodexAuthoringModule` supplies a bounded commit/issue/diff/source/framework context to `AgentSessionPort`. Every repository-derived section has a unique untrusted-data delimiter and an explicit instruction not to follow embedded instructions. At most three nearby tests and three agent turns are allowed.
 
-At most three authoring attempts are allowed. Later turns stay on the opaque continuation and receive only a normalized category, bounded feedback, and the previous patch digest. Format, policy, syntax, collection, and parent-pass overgeneralization are repairable. Installation, build, dependency, platform, timeout, credential, network, and environment-equivalence failures terminate authoring without spending another attempt. The session is stopped in `finally`.
+The result must be exactly one strict `antibody.agent-output/v1` JSON object. The module independently checks output bytes, candidate identity, canonical base64, UTF-8, and line endings. `testCommandHint` is informational and is never executed. Repair turns reuse only the opaque continuation, normalized category/feedback, and previous patch digest. Dependency, platform, timeout, credential, network, and environment-equivalence evidence ends repair immediately. The agent session is stopped in `finally`.
 
-The patch parser—not the model's description—enforces test-only scope. It rejects:
+`evaluateTestPatch` structurally rejects production/workflow paths, unsafe or traversal paths, binary content, rename/copy, deletion, executable/symlink/gitlink modes, empty/support-only patches, and configured byte/file/line excess. It then runs argv-only `git apply --check` in detached temporary worktrees for parent, fix, and captured head.
 
-- paths outside configured test/support globs, production/dependency/build/config/workflow paths, and every `.github/workflows/**` path;
-- absolute, traversal, backslash, NUL, malformed, rename, or copy paths;
-- binary patches, symlink/gitlink modes, executable mode changes, and test-file deletion;
-- empty patches, patches without an added/changed executable test, and configured byte/file/added-line excesses;
-- any patch that fails `git apply --check --cached` in temporary indexes seeded from parent, fix, or captured `HEAD`.
+## Classification and causal truth table
 
-## Classification and stable signatures
+TAP, JUnit, Vitest JSON, Jest JSON, and conservative pytest text are parsed independently. Missing or malformed required reports become `unknown-failure`. ANSI sequences, temporary paths, line/column values, timestamps, and UUIDs are removed before signature hashing while target test name, failure kind, assertion operator, stable message, and project frame remain.
 
-TAP, JUnit XML, Vitest JSON, Jest JSON, and conservative pytest text are parsed independently. Missing or malformed reporter content is `unknown-failure`; a nonzero exit code alone is never proof of a behavioral regression.
+| Parent candidate repetitions | Fix repetitions | Current head | Result |
+|---|---|---|---|
+| Same target assertion/behavioral signature | All pass | Targeted and configured full suite pass | `verified` |
+| Any pass | Any | Any | `rejected` |
+| Unrelated failure | Any | Any | `rejected` |
+| Stable semantic failure | Semantic failure | Any | `rejected` |
+| Valid target failure | All pass | Semantic failure | `rejected` |
+| Collection/build/dependency/timeout/crash/platform/unknown | Any | Any | `inconclusive` |
+| Signatures disagree | Any | Any | `inconclusive` |
+| Environment mismatch, missing attempts/reports, or incomplete cleanup | Any | Any | `inconclusive` |
 
-Every frozen outcome is represented: `pass`, `assertion-failure`, `behavioral-failure`, `unrelated-test-failure`, `collection-failure`, `build-failure`, `dependency-failure`, `timeout`, `crash`, `platform-failure`, and `unknown-failure`.
+Passing parent/fix baselines, exact repetition counts, evidence identity, equivalent environment metadata, and complete cleanup records are required. A nonzero exit code never verifies a candidate.
 
-Failure signatures canonicalize a tuple containing the target test names, error type, assertion operator, message, and first project frame. ANSI sequences, external/temporary paths, line and column numbers, timestamps, and random identifiers are normalized. Parent repetitions must have one exact signature.
+## Receipts
 
-## Causal verdict table
+`buildReceipt` validates all frozen inputs, strips artifact bodies from the immutable manifest, and hashes canonical RFC 8785 JSON with SHA-256. `FileReceiptStore` persists candidate, exact patch, redacted raw evidence, classifications, bounded artifacts, canonical receipt, and digest under one run directory. Writes use mode `0600`, file `fsync`, atomic rename, and best-effort directory `fsync`. Existing receipts are immutable and idempotent. Configured literal secrets and high-risk token forms are redacted before raw evidence persistence; a patch containing such material is refused rather than rewritten.
 
-Policy failure, a current-HEAD patch conflict, a passing parent, a failure unrelated to the target, a semantic failure on the fix or current HEAD, or a semantic full-suite failure is rejected. Infrastructure/malformed evidence, environment mismatch, missing observations, and unstable repetitions are inconclusive.
+## GitHub publication boundary
 
-| Required gate | Verified value | Otherwise |
-|---|---|---|
-| Patch policy | test-only, applies to all three trees | rejected |
-| Environment | equivalent compared fields | inconclusive |
-| Setup/baseline | all pass | semantic: rejected; infrastructure: inconclusive |
-| Parent repetitions | all target assertion/behavioral failures | pass/unrelated: rejected; infrastructure: inconclusive |
-| Parent signature | present and identical every time | inconclusive |
-| Fix repetitions | all pass | semantic: rejected; infrastructure: inconclusive |
-| Current-HEAD target | pass | semantic: rejected; infrastructure: inconclusive |
-| Configured HEAD full suite | pass | semantic: rejected; infrastructure: inconclusive |
+`GitHubDraftPublisher` accepts only a schema-valid `verified` receipt with a passing test-only policy, exact approval digest, exact patch digest, and the same current base SHA recorded by the receipt. It uses these official REST operations through a typed private control:
 
-Only the all-green right side after a stable parent red produces `verified` with `causal-red-green-confirmed`.
+- `git.getRef`, `git.getCommit`, `git.createBlob`, `git.createTree`, `git.createCommit`, `git.createRef`, and `git.updateRef` with `force: false`;
+- `pulls.list` and `pulls.create` with `draft: true`; and
+- best-effort `issues.addLabels` after the draft exists.
 
-## Evidence, receipts, and publication
+The deterministic branch is never overwritten when it contains unrelated work. A receipt marker deduplicates open drafts; a matching non-draft is a conflict. Git objects and commit identity are deterministic, so retry after a partial branch/PR failure resumes without force-pushing or duplicating the pull request. The publisher exposes no merge operation and needs only Contents read/write plus Pull requests write; label application can also use Pull requests write.
 
-Before persistence, configured secrets and high-risk token shapes are replaced and artifact manifests are rehashed. JSON is RFC 8785 canonicalized. A run directory contains the candidate, patch, redacted raw evidence, classifications, individual artifacts, receipt, and receipt digest. Each file is written to a user-only temporary file, `fsync`ed, then renamed. An existing non-identical file is never overwritten. Verification reparses every frozen schema, requires canonical bytes, and recomputes receipt, patch, raw-evidence, candidate, classification, artifact-manifest, and stored-artifact hashes.
-
-Publication requires a verified, policy-clean receipt; an exact approval equal to its recomputed canonical digest; and patch bytes and paths matching the receipt. The base branch must still equal the verified `HEAD`. The publisher searches for the deterministic receipt marker before writes, reuses a matching open draft PR, creates `antibody/<fix-short>-<run-short>`, never force-pushes or merges, and opens a draft only. A retry can resume a receipt-marked branch commit after partial failure without duplicating the branch, commit, or PR. The default commit contains only materialized test files; an in-repository canonical receipt is an explicit project-policy opt-in.
-
-The GitHub token needs only repository contents read/write and pull requests write.
+Person C composes `RecoveryCoordinator` with concrete Person A ports and owns CLI/presentation. Person B modules import frozen contracts only and contain no Runloop or Reflex SDK transport logic.

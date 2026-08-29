@@ -1,95 +1,249 @@
 import {spawn} from 'node:child_process';
-import {readFile, readdir, mkdir} from 'node:fs/promises';
-import {fileURLToPath} from 'node:url';
-import path from 'node:path';
+import {createHash} from 'node:crypto';
+import {mkdtemp, mkdir, readFile, rm, writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join, resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
 
-const MAX_GIT_OUTPUT_BYTES = 1_048_576;
+const repositorySlug = 'antibody/demo-history';
+const identity = 'Antibody Fixture <fixture@antibody.invalid>';
 
-type GitResult = Readonly<{
-	stdout: string;
-	stderr: string;
-}>;
+interface CommitFile {
+  readonly path: string;
+  readonly content: string;
+}
+
+interface FixtureExpected {
+  readonly schemaVersion: 'antibody.demo-history/v1';
+  readonly shas: {
+    readonly base: string;
+    readonly docs: string;
+    readonly fix: string;
+    readonly head: string;
+  };
+  readonly candidateOrder: readonly string[];
+  readonly candidateId: string;
+  readonly patchSha256: string;
+  readonly normalizedParentSignature: string;
+  readonly changedPaths: readonly string[];
+  readonly verdict: 'verified';
+}
+
+function data(value: string): string {
+  return `data ${String(Buffer.byteLength(value, 'utf8'))}\n${value}\n`;
+}
+
+function fileCommands(files: readonly CommitFile[]): string {
+  return files
+    .map((file) => `M 100644 inline ${file.path}\n${data(file.content)}`)
+    .join('');
+}
+
+function commit(options: {
+  readonly mark: number;
+  readonly parentMark?: number;
+  readonly timestamp: number;
+  readonly message: string;
+  readonly files: readonly CommitFile[];
+}): string {
+  const parent = options.parentMark === undefined ? '' : `from :${String(options.parentMark)}\n`;
+  return [
+    'commit refs/heads/main\n',
+    `mark :${String(options.mark)}\n`,
+    `author ${identity} ${String(options.timestamp)} +0000\n`,
+    `committer ${identity} ${String(options.timestamp)} +0000\n`,
+    data(options.message),
+    parent,
+    fileCommands(options.files),
+    '\n',
+  ].join('');
+}
+
+export function buildFixtureStream(): string {
+  const packageJson = `${JSON.stringify(
+    {
+      name: 'antibody-demo-history',
+      private: true,
+      type: 'module',
+      scripts: {test: 'node --test'},
+    },
+    undefined,
+    2,
+  )}\n`;
+  const buggySlug = [
+    'export function slugify(value) {',
+    "  return value.trim().toLowerCase().replace(' ', '-');",
+    '}',
+    '',
+  ].join('\n');
+  const fixedSlug = [
+    'export function slugify(value) {',
+    "  return value.trim().toLowerCase().replace(/\\s+/gu, '-');",
+    '}',
+    '',
+  ].join('\n');
+  const compatibleHead = [
+    "export const slugSeparator = '-';",
+    '',
+    'export function slugify(value) {',
+    '  return value.trim().toLowerCase().replace(/\\s+/gu, slugSeparator);',
+    '}',
+    '',
+  ].join('\n');
+  const initialTest = [
+    "import assert from 'node:assert/strict';",
+    "import test from 'node:test';",
+    '',
+    "import {slugify} from '../src/slug.js';",
+    '',
+    "test('slugifies two words', () => {",
+    "  assert.equal(slugify('Hello World'), 'hello-world');",
+    '});',
+    '',
+  ].join('\n');
+
+  return [
+    'feature done\n',
+    commit({
+      mark: 1,
+      timestamp: 1_704_067_200,
+      message: 'feat: add slug helper',
+      files: [
+        {path: 'package.json', content: packageJson},
+        {path: 'src/slug.js', content: buggySlug},
+        {path: 'test/slug.test.js', content: initialTest},
+      ],
+    }),
+    commit({
+      mark: 2,
+      parentMark: 1,
+      timestamp: 1_704_153_600,
+      message: 'docs: explain slug output',
+      files: [{path: 'README.md', content: '# Slugs\n\nLowercase words joined by hyphens.\n'}],
+    }),
+    commit({
+      mark: 3,
+      parentMark: 2,
+      timestamp: 1_704_240_000,
+      message: 'fix: collapse repeated whitespace in slugs',
+      files: [{path: 'src/slug.js', content: fixedSlug}],
+    }),
+    commit({
+      mark: 4,
+      parentMark: 3,
+      timestamp: 1_704_326_400,
+      message: 'refactor: name the slug separator',
+      files: [{path: 'src/slug.js', content: compatibleHead}],
+    }),
+    'done\n',
+  ].join('');
+}
 
 async function runGit(
-	workingDirectory: string,
-	argv: readonly string[],
-	input?: Uint8Array,
-): Promise<GitResult> {
-	return new Promise((resolve, reject) => {
-		const child = spawn('git', argv, {
-			cwd: workingDirectory,
-			stdio: ['pipe', 'pipe', 'pipe'],
-			windowsHide: true,
-		});
-		const stdoutChunks: Buffer[] = [];
-		const stderrChunks: Buffer[] = [];
-		let outputBytes = 0;
-
-		const collect = (chunks: Buffer[], chunk: Buffer): void => {
-			outputBytes += chunk.byteLength;
-			if (outputBytes > MAX_GIT_OUTPUT_BYTES) {
-				child.kill();
-				reject(new Error('Git output exceeded the fixture builder limit'));
-				return;
-			}
-
-			chunks.push(chunk);
-		};
-
-		child.stdout.on('data', (chunk: Buffer) => {
-			collect(stdoutChunks, chunk);
-		});
-		child.stderr.on('data', (chunk: Buffer) => {
-			collect(stderrChunks, chunk);
-		});
-		child.once('error', reject);
-		child.once('close', exitCode => {
-			const stdout = Buffer.concat(stdoutChunks).toString('utf8');
-			const stderr = Buffer.concat(stderrChunks).toString('utf8');
-			if (exitCode !== 0) {
-				const termination = exitCode === null ? 'signal' : String(exitCode);
-				reject(new Error(`git ${argv[0] ?? '<missing>'} failed (${termination}): ${stderr}`));
-				return;
-			}
-
-			resolve({stdout, stderr});
-		});
-
-		if (input === undefined) {
-			child.stdin.end();
-		} else {
-			child.stdin.end(input);
-		}
-	});
+  repositoryPath: string,
+  arguments_: readonly string[],
+  input?: string,
+): Promise<string> {
+  return await new Promise<string>((resolvePromise, reject) => {
+    const child = spawn('git', arguments_, {
+      cwd: repositoryPath,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
+    child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
+    child.once('error', reject);
+    child.once('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`git ${arguments_.join(' ')} failed: ${Buffer.concat(stderr).toString('utf8')}`));
+        return;
+      }
+      resolvePromise(Buffer.concat(stdout).toString('utf8'));
+    });
+    child.stdin.end(input);
+  });
 }
 
-export async function buildDemoFixture(targetDirectory: string): Promise<string> {
-	const resolvedTarget = path.resolve(targetDirectory);
-	await mkdir(resolvedTarget, {recursive: true});
-	const existingEntries = await readdir(resolvedTarget);
-	if (existingEntries.length > 0) {
-		throw new Error('Demo fixture target must be an empty directory');
-	}
-
-	await runGit(resolvedTarget, ['init', '--initial-branch=main']);
-	const fixtureDirectory = path.resolve(
-		path.dirname(fileURLToPath(import.meta.url)),
-		'../fixtures/demo-history',
-	);
-	const stream = await readFile(path.join(fixtureDirectory, 'history.fi'));
-	await runGit(resolvedTarget, ['fast-import', '--quiet'], stream);
-	await runGit(resolvedTarget, ['reset', '--hard', 'refs/heads/main']);
-	const result = await runGit(resolvedTarget, ['rev-parse', '--verify', 'HEAD']);
-	return result.stdout.trim();
+function sha256(value: string): string {
+  return `sha256:${createHash('sha256').update(value, 'utf8').digest('hex')}`;
 }
 
-const invokedPath = process.argv[1] === undefined ? undefined : path.resolve(process.argv[1]);
-if (invokedPath === fileURLToPath(import.meta.url)) {
-	const target = process.argv[2];
-	if (target === undefined) {
-		throw new Error('Usage: build-demo-fixture.ts <empty-directory>');
-	}
+export async function buildDemoFixture(outputDirectory: string): Promise<FixtureExpected> {
+  const stream = buildFixtureStream();
+  const temporaryRepository = await mkdtemp(join(tmpdir(), 'antibody-demo-history-'));
+  try {
+    await runGit(temporaryRepository, ['init', '--initial-branch=main']);
+    await runGit(temporaryRepository, ['fast-import', '--date-format=raw'], stream);
+    const shas = (await runGit(temporaryRepository, ['rev-list', '--reverse', 'main']))
+      .trim()
+      .split('\n');
+    if (shas.length !== 4 || shas.some((sha) => !/^[0-9a-f]{40}$/u.test(sha))) {
+      throw new Error('Fixture import did not produce exactly four full commit SHAs');
+    }
+    const [base, docs, fix, head] = shas;
+    if (base === undefined || docs === undefined || fix === undefined || head === undefined) {
+      throw new Error('Fixture commit SHAs are incomplete');
+    }
 
-	const head = await buildDemoFixture(target);
-	process.stdout.write(`${head}\n`);
+    await runGit(temporaryRepository, ['checkout', '--detach', fix]);
+    const testPath = join(temporaryRepository, 'test/slug.test.js');
+    const existingTest = await readFile(testPath, 'utf8');
+    const recoveredTest = [
+      existingTest.trimEnd(),
+      '',
+      "test('collapses repeated whitespace', () => {",
+      "  assert.equal(slugify('Hello   World'), 'hello-world');",
+      '});',
+      '',
+    ].join('\n');
+    await writeFile(testPath, recoveredTest, {encoding: 'utf8', mode: 0o600});
+    const patch = await runGit(temporaryRepository, [
+      'diff',
+      '--no-ext-diff',
+      '--no-color',
+      '--binary',
+      '--',
+      'test/slug.test.js',
+    ]);
+
+    const expected: FixtureExpected = {
+      schemaVersion: 'antibody.demo-history/v1',
+      shas: {base, docs, fix, head},
+      candidateOrder: [fix, head],
+      candidateId: sha256(`${repositorySlug}\u0000${docs}\u0000${fix}`),
+      patchSha256: sha256(patch),
+      normalizedParentSignature: sha256(
+        [
+          'collapses repeated whitespace',
+          'assertion-failure',
+          'strictEqual',
+          'Expected values to be strictly equal',
+          'test/slug.test.js',
+        ].join('\u0000'),
+      ),
+      changedPaths: ['test/slug.test.js'],
+      verdict: 'verified',
+    };
+
+    await mkdir(outputDirectory, {recursive: true});
+    await writeFile(join(outputDirectory, 'history.fi'), stream, {encoding: 'utf8', mode: 0o600});
+    await writeFile(join(outputDirectory, 'recovered-test.patch'), patch, {
+      encoding: 'utf8',
+      mode: 0o600,
+    });
+    await writeFile(join(outputDirectory, 'expected.json'), `${JSON.stringify(expected, undefined, 2)}\n`, {
+      encoding: 'utf8',
+      mode: 0o600,
+    });
+    return expected;
+  } finally {
+    await rm(temporaryRepository, {recursive: true, force: true});
+  }
+}
+
+const invokedPath = process.argv[1];
+if (invokedPath !== undefined && import.meta.url === pathToFileURL(resolve(invokedPath)).href) {
+  const outputDirectory = resolve(process.argv[2] ?? 'fixtures/demo-history');
+  await buildDemoFixture(outputDirectory);
 }

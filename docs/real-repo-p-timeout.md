@@ -1,30 +1,26 @@
-# Real repository demonstration: `sindresorhus/p-timeout`
+# Real-repository rehearsal: `sindresorhus/p-timeout`
 
-This runbook specifies the real-repository Antibody demonstration without publishing to upstream.
+This runbook pins the public MIT-licensed `sindresorhus/p-timeout` regression used for the Antibody demo.
 
-## Historical target
+## Immutable oracle
 
-- Repository: <https://github.com/sindresorhus/p-timeout>
-- Issue: <https://github.com/sindresorhus/p-timeout/issues/45>
+- Fix: `ed58372c62d3dddfe6f58de37558fb132e1a4e9b` — `Fix "Illegal invocation" error with custom timers`
 - Parent: `f9ced5e18ad81eab24a9a8d0f07bf3002f7bea64`
-- Fix: `ed58372c62d3dddfe6f58de37558fb132e1a4e9b`
-- Inspected upstream HEAD: `245066ef7daa5e74024d5b6a188ae599a1b7bfdf`
-- License: MIT (`license: "MIT"` in `package.json` and the upstream `license` file)
+- Issue: [#45, “Uncaught (in promise) TypeError: Illegal invocation”](https://github.com/sindresorhus/p-timeout/issues/45)
+- Rehearsed current head on 2026-08-29: `245066ef7daa5e74024d5b6a188ae599a1b7bfdf`
 
-The fix changes only `index.js` (+4/−2). It invokes both custom timer functions with `.call(undefined, ...)`. The parent invokes them as object properties, so ordinary functions observe the `customTimers` object as `this`.
+The fix changes only `index.js`: two property calls become `.call(undefined, ...)`, with explanatory comments. No test file changed. The parent package uses Node 20+, AVA 6, `test.js`, and `npm test`; it has no lockfile. The repository license file is MIT.
 
-The historical package is `p-timeout` 7.0.0, requires Node 20 or newer, runs `xo && ava && tsd`, and declares ranges such as AVA `^6.4.1`. It has no committed lockfile. A fresh install today is therefore not the same dependency environment that existed when the fix landed. Dependency drift must not be confused with product behavior.
+## Regression test
 
-## Recovered AVA test
-
-Add the following behavior-specific test beside the existing `accepts customTimers option` coverage in `test.js`. Method shorthand is intentional: these are normal functions whose receiver is observable, not arrows.
+Add this test after the existing `accepts \`customTimers\` option` case in `test.js`:
 
 ```js
 test('calls custom timers without a receiver', async t => {
 	t.plan(2);
 
-	await pTimeout(delay(50), {
-		milliseconds: 123,
+	await pTimeout(delay(10), {
+		milliseconds: 100,
 		customTimers: {
 			setTimeout(function_, milliseconds) {
 				t.is(this, undefined);
@@ -39,62 +35,40 @@ test('calls custom timers without a receiver', async t => {
 });
 ```
 
-The target is the receiver contract, not implementation text. The parent must fail the new test because at least one custom timer receives the options object. The fix and current upstream code must pass.
+Normal function methods expose their receiver. On the parent, `customTimers.setTimeout(...)` binds the timer object as `this`; AVA reports the object where `undefined` was expected. On the fix and current head, `.call(undefined, ...)` makes both assertions pass.
 
-The expected normalized parent signature retains:
+## Local rehearsal evidence
 
-- test name: `calls custom timers without a receiver`;
-- error type: AVA assertion failure / `AssertionError`;
-- operator: equality (`is`/strict equality as emitted by the selected AVA reporter);
-- first project frame: `test.js:<line>:<column>`;
-- message: the receiver was expected to be `undefined`.
-
-Volatile absolute paths, line numbers, timing, ANSI, temporary-directory names, and identifiers are normalized. Two parent repetitions must yield the exact same canonical signature; the exit code alone is not evidence.
-
-## Shared prewarmed Runloop Snapshot
-
-Use one Linux x86_64 Runloop Snapshot for every lane. Seed it once with Node 20+ and one successful install at the target repository state, then freeze the resulting repository cache and `node_modules`. Record `node --version`, `npm --version`, and `npm ls --all` as snapshot provenance. Do not run independent fresh dependency resolution in the parent and fix lanes.
-
-The Snapshot strategy is the environmental control necessitated by the missing lockfile:
-
-1. Create a disposable seed Devbox from the configured Blueprint.
-2. Clone the repository and fetch the parent, fix, and current commits.
-3. Check out the fix detached and run `npm install --ignore-scripts=false` once.
-4. Run the unmodified suite once to prove the seed is usable.
-5. Capture a Snapshot and configure every causal lane from that exact Snapshot ID, architecture, shape, and Network Policy.
-6. Record resolved Snapshot/Network Policy provenance in raw evidence and compare it before adjudication.
-
-Runloop ordinary executions start fresh shells, so every operation supplies explicit cwd and environment. Use an in-box timeout plus the controller deadline; an optimistic SDK wait is not a kill switch.
-
-## Exact lane commands
-
-In a prewarmed lane, use argv commands equivalent to the following. Substitute the full lane SHA; never interpolate an untrusted ref into a shell string.
+The exact test above was run on 2026-08-29 with dependencies installed once from the parent `package.json` using `npm install --ignore-scripts --no-package-lock --no-audit --no-fund`:
 
 ```text
-["git", "checkout", "--detach", "<full-lane-sha>"]
-["git", "rev-parse", "HEAD"]
-["git", "status", "--porcelain=v1", "-z"]
-["git", "apply", "--check", "candidate.diff"]
-["git", "apply", "candidate.diff"]
-["npm", "exec", "--", "ava", "test.js", "--match=calls custom timers without a receiver", "--tap"]
+parent f9ced5e18ad81eab24a9a8d0f07bf3002f7bea64: exit 1
+  AVA failure at test.js: t.is(this, undefined)
+  actual receiver: customTimers object
+
+fix ed58372c62d3dddfe6f58de37558fb132e1a4e9b: exit 0, 1 test passed
+head 245066ef7daa5e74024d5b6a188ae599a1b7bfdf: exit 0, 1 test passed
 ```
 
-Run the targeted AVA command twice on the parent and twice on the fix. Run it on current HEAD after the two historical lanes establish the red/green relation. On current HEAD also run the configured full suite:
+This was a local public-repository rehearsal, not Runloop evidence and not a publishable Antibody receipt.
 
-```text
-["npm", "test"]
+## Runloop proof plan
+
+Historical dependency resolution is mutable because the repository has no lockfile and uses semver ranges. Before the live proof:
+
+1. Create one prewarmed Linux Snapshot after installing the historical dependency tree with lifecycle scripts disabled for the install inspection step, then enable only the exact tested command plan required for proof.
+2. Record Node/npm versions and a deterministic inventory/hash of `node_modules` or the resolved package tree.
+3. Use that identical Snapshot, architecture, shape, literal environment, and Network Policy for parent and fix lanes.
+4. Run baseline `npm test` before applying the patch on both lanes.
+5. Upload one patch file and verify the same SHA-256 inside each Devbox.
+6. Run the targeted AVA case twice on parent and twice on fix. The parent signature must be identical; both fix runs must pass.
+7. Check out captured current head, apply the same patch, run the targeted test and full `npm test`.
+8. Persist raw evidence before bounded shutdown and record cleanup for every Devbox.
+
+Suggested targeted argv (the final command must match the prewarmed Snapshot and be recorded verbatim):
+
+```json
+["npx", "ava", "test.js", "--match=calls custom timers without a receiver"]
 ```
 
-For each lane, verify `git rev-parse HEAD` is the requested full SHA before applying the patch. Hash the patch in the controller and in the lane, retain bounded complete reporter output, and treat truncation or malformed TAP as inconclusive. The expected result is:
-
-| Lane | Targeted result |
-|---|---|
-| Parent `f9ced5e…` | stable assertion failure in both repetitions |
-| Fix `ed58372…` | pass in both repetitions |
-| Inspected/current HEAD | targeted pass and full-suite pass |
-
-## Publication safety
-
-The upstream repository is read-only for this demo. Configure Antibody's `RepositoryRef` and GitHub write token for a writable fork, keep the upstream SHAs in the receipt, and set the fork's base branch to a commit containing the captured verified HEAD. The publisher must stop if that branch moves, require the exact receipt digest approval, create a draft PR only, and never merge or force-push.
-
-Retain the upstream MIT license and attribution. The recovered test may be proposed to the writable fork; no claim is made that Antibody has permission to publish directly to `sindresorhus/p-timeout`.
+No live Runloop or Reflex credentials were used in this Person B rehearsal. Person C must run the budget-bounded live proof with Person A’s adapter and label recorded versus live evidence honestly.

@@ -1,191 +1,317 @@
-import {readFile} from 'node:fs/promises';
-import path from 'node:path';
+import {createHash, randomUUID} from 'node:crypto';
+import {constants as fileConstants} from 'node:fs';
+import {access, mkdir, open, readFile, rename, unlink} from 'node:fs/promises';
+import {basename, dirname, join} from 'node:path';
 
 import {canonicalize} from 'json-canonicalize';
-import {z} from 'zod';
 
-import {
-	ClassifiedAttemptSchema,
-	RawVerificationEvidenceSchema,
-	ReceiptSchema,
-	RecoveryCandidateSchema,
-	Sha256Schema,
+import type {
+  ArtifactV1,
+  ClassifiedAttemptV1,
+  RawVerificationEvidenceV1,
+  ReceiptV1,
+  Sha256,
+  VerificationRequestV1,
 } from '../../contracts/index.js';
-import {sha256Bytes, sha256Canonical} from '../digest.js';
-import {AtomicFileWriter} from './atomic-writer.js';
-import type {BuiltReceiptBundle} from './receipt-builder.js';
+import {
+  ClassifiedAttemptSchema,
+  RawVerificationEvidenceSchema,
+  RecoveryCandidateSchema,
+  ReceiptSchema,
+  Sha256Schema,
+  VerificationRequestSchema,
+} from '../../contracts/index.js';
 
-function canonicalBytes(value: unknown): Uint8Array {
-	return Buffer.from(canonicalize(value), 'utf8');
+import type {AdjudicationResult} from '../adjudication/adjudicator.js';
+import type {PatchPolicyResult} from '../policy/patch-policy.js';
+
+export interface AtomicWriter {
+  write(path: string, bytes: Buffer): Promise<void>;
 }
 
-function artifactFileName(
-	lane: string,
-	phase: string,
-	attempt: number,
-	kind: 'stdout' | 'stderr' | 'report',
-): string {
-	return `${lane}-${phase}-${String(attempt)}.${kind}`;
+export class FileAtomicWriter implements AtomicWriter {
+  async write(path: string, bytes: Buffer): Promise<void> {
+    const directory = dirname(path);
+    await mkdir(directory, {recursive: true, mode: 0o700});
+    const temporaryPath = join(directory, `.${basename(path)}.${randomUUID()}.tmp`);
+    const handle = await open(temporaryPath, 'wx', 0o600);
+    let handleClosed = false;
+    try {
+      await handle.writeFile(bytes);
+      await handle.sync();
+    } catch (error: unknown) {
+      await handle.close();
+      handleClosed = true;
+      await unlink(temporaryPath).catch(() => undefined);
+      throw error;
+    } finally {
+      if (!handleClosed) await handle.close();
+    }
+    await rename(temporaryPath, path);
+    try {
+      const directoryHandle = await open(directory, 'r');
+      try {
+        await directoryHandle.sync();
+      } finally {
+        await directoryHandle.close();
+      }
+    } catch {
+      // Some filesystems do not support fsync on directories; file fsync and rename still hold.
+    }
+  }
 }
 
-function decodeContent(value: string): Uint8Array {
-	const bytes = Buffer.from(value, 'base64');
-	if (bytes.toString('base64') !== value) {
-		throw new Error('Artifact content is not canonical base64');
-	}
-	return bytes;
+export class Redactor {
+  readonly #literalSecrets: readonly string[];
+
+  constructor(literalSecrets: readonly string[]) {
+    this.#literalSecrets = literalSecrets.filter((value) => value.length >= 4);
+  }
+
+  redact(value: string): string {
+    let redacted = value;
+    for (const secret of this.#literalSecrets) redacted = redacted.replaceAll(secret, '[REDACTED]');
+    return redacted
+      .replaceAll(/\b(?:Bearer\s+)[A-Za-z0-9._~+/-]{16,}\b/giu, 'Bearer [REDACTED]')
+      .replaceAll(/\b(?:github_pat_|gh[pousr]_)[A-Za-z0-9_]{16,}\b/gu, '[REDACTED]');
+  }
 }
 
-export async function persistReceiptBundle(
-	repositoryRoot: string,
-	bundle: BuiltReceiptBundle,
-	patch: string,
-	writer = new AtomicFileWriter(),
-): Promise<string> {
-	const receipt = ReceiptSchema.parse(bundle.receipt);
-	const rawEvidence = RawVerificationEvidenceSchema.parse(bundle.rawEvidence);
-	if (sha256Canonical(receipt) !== bundle.receiptSha256) {
-		throw new Error('Receipt bundle digest is inconsistent');
-	}
-	if (sha256Bytes(Buffer.from(patch, 'utf8')) !== receipt.patch.sha256) {
-		throw new Error('Receipt bundle patch digest is inconsistent');
-	}
-
-	const runDirectory = path.join(
-		path.resolve(repositoryRoot),
-		'.antibody',
-		'runs',
-		receipt.runId,
-	);
-	await writer.write(path.join(runDirectory, 'candidate.json'), canonicalBytes(receipt.candidate));
-	await writer.write(path.join(runDirectory, 'patch.diff'), Buffer.from(patch, 'utf8'));
-	await writer.write(path.join(runDirectory, 'raw-evidence.json'), canonicalBytes(rawEvidence));
-	await writer.write(
-		path.join(runDirectory, 'classified-evidence.json'),
-		canonicalBytes(receipt.classifications),
-	);
-	for (const attempt of rawEvidence.attempts) {
-		const artifacts = [
-			{kind: 'stdout' as const, artifact: attempt.stdout},
-			{kind: 'stderr' as const, artifact: attempt.stderr},
-			...(attempt.report === undefined
-				? []
-				: [{kind: 'report' as const, artifact: attempt.report}]),
-		];
-		for (const entry of artifacts) {
-			if (entry.artifact.contentBase64 !== undefined) {
-				await writer.write(
-					path.join(
-						runDirectory,
-						'artifacts',
-						artifactFileName(attempt.lane, attempt.phase, attempt.attempt, entry.kind),
-					),
-					decodeContent(entry.artifact.contentBase64),
-				);
-			}
-		}
-	}
-	await writer.write(path.join(runDirectory, 'receipt.json'), canonicalBytes(receipt));
-	await writer.write(
-		path.join(runDirectory, 'receipt.sha256'),
-		Buffer.from(`${bundle.receiptSha256}\n`, 'utf8'),
-	);
-	return runDirectory;
+export interface BuildReceiptOptions {
+  readonly request: VerificationRequestV1;
+  readonly evidence: RawVerificationEvidenceV1;
+  readonly classifications: readonly ClassifiedAttemptV1[];
+  readonly policy: PatchPolicyResult;
+  readonly adjudication: AdjudicationResult;
+  readonly patchArtifact: Omit<ArtifactV1, 'contentBase64'>;
+  readonly createdAt: string;
+  readonly modelUsd?: number;
+  readonly redactor?: Redactor;
 }
 
-export type ReceiptVerification = Readonly<{
-	valid: boolean;
-	reasons: readonly string[];
-}>;
+export function buildReceipt(options: BuildReceiptOptions): ReceiptV1 {
+  const request = VerificationRequestSchema.parse(options.request);
+  const redactor = options.redactor ?? new Redactor([]);
+  const evidence = sanitizeEvidence(
+    options.evidence,
+    redactor,
+  );
+  const candidate = RecoveryCandidateSchema.parse(redactStructured(request.candidate, redactor));
+  const classifications = options.classifications.map((entry) =>
+    ClassifiedAttemptSchema.parse(redactStructured(entry, redactor)),
+  );
+  const artifacts = evidence.attempts.flatMap((attempt) => [
+    omitContent(attempt.stdout),
+    omitContent(attempt.stderr),
+    ...(attempt.report === undefined ? [] : [omitContent(attempt.report)]),
+  ]);
+  return ReceiptSchema.parse({
+    schemaVersion: 'antibody.receipt/v1',
+    runId: request.runId,
+    candidate,
+    patch: {
+      sha256: request.patch.sha256,
+      sizeBytes: options.policy.sizeBytes,
+      changedPaths: options.policy.changedPaths,
+      artifact: options.patchArtifact,
+    },
+    policy: {
+      testOnly: options.policy.testOnly,
+      allowedGlobs: options.policy.allowedGlobs,
+      violations: options.policy.violations.map((violation) => ({
+        code: violation.code,
+        ...(violation.path === undefined ? {} : {path: violation.path}),
+        detail: violation.detail,
+      })),
+    },
+    environment: {
+      ...evidence.environmentEquivalence,
+      source: request.environment.source,
+      ...(request.environment.networkPolicyId === undefined
+        ? {}
+        : {networkPolicyId: request.environment.networkPolicyId}),
+    },
+    classifications,
+    evidence: {
+      rawEvidenceSha256: sha256(canonicalBytes(evidence)),
+      artifacts,
+      ...(evidence.reflex === undefined ? {} : {reflex: evidence.reflex}),
+      cleanup: evidence.cleanup,
+    },
+    costs: {
+      ...(options.modelUsd === undefined ? {} : {modelUsd: options.modelUsd}),
+      ...(evidence.runloopCostUsd === undefined ? {} : {runloopUsd: evidence.runloopCostUsd}),
+    },
+    verdict: options.adjudication.verdict,
+    reasonCodes: options.adjudication.reasonCodes,
+    createdAt: options.createdAt,
+  });
+}
 
-export async function verifyPersistedRun(runDirectoryInput: string): Promise<ReceiptVerification> {
-	const runDirectory = path.resolve(runDirectoryInput);
-	const reasons: string[] = [];
-	let receiptText: string;
-	let rawText: string;
-	let candidateText: string;
-	let classificationsText: string;
-	let patchBytes: Uint8Array;
-	let recordedDigest: string;
-	try {
-		[
-			receiptText,
-			rawText,
-			candidateText,
-			classificationsText,
-			patchBytes,
-			recordedDigest,
-		] = await Promise.all([
-			readFile(path.join(runDirectory, 'receipt.json'), 'utf8'),
-			readFile(path.join(runDirectory, 'raw-evidence.json'), 'utf8'),
-			readFile(path.join(runDirectory, 'candidate.json'), 'utf8'),
-			readFile(path.join(runDirectory, 'classified-evidence.json'), 'utf8'),
-			readFile(path.join(runDirectory, 'patch.diff')),
-			readFile(path.join(runDirectory, 'receipt.sha256'), 'utf8'),
-		]);
-	} catch {
-		return {valid: false, reasons: ['missing-or-unreadable-bundle-file']};
-	}
+export function canonicalReceiptBytes(receiptInput: ReceiptV1): Buffer {
+  return canonicalBytes(ReceiptSchema.parse(receiptInput));
+}
 
-	try {
-		const receipt = ReceiptSchema.parse(JSON.parse(receiptText));
-		const raw = RawVerificationEvidenceSchema.parse(JSON.parse(rawText));
-		const candidate = RecoveryCandidateSchema.parse(JSON.parse(candidateText));
-		const classifications = z.array(ClassifiedAttemptSchema).parse(JSON.parse(classificationsText));
-		const digest = Sha256Schema.parse(recordedDigest.trim());
-		if (receiptText !== canonicalize(receipt)) reasons.push('receipt-not-canonical');
-		if (rawText !== canonicalize(raw)) reasons.push('raw-evidence-not-canonical');
-		if (candidateText !== canonicalize(candidate)) reasons.push('candidate-not-canonical');
-		if (classificationsText !== canonicalize(classifications)) reasons.push('classifications-not-canonical');
-		if (sha256Canonical(receipt) !== digest) reasons.push('receipt-digest-mismatch');
-		if (sha256Canonical(raw) !== receipt.evidence.rawEvidenceSha256) reasons.push('raw-evidence-digest-mismatch');
-		if (sha256Canonical(candidate) !== sha256Canonical(receipt.candidate)) reasons.push('candidate-mismatch');
-		if (sha256Canonical(classifications) !== sha256Canonical(receipt.classifications)) reasons.push('classifications-mismatch');
-		if (sha256Bytes(patchBytes) !== receipt.patch.sha256
-			|| patchBytes.byteLength !== receipt.patch.sizeBytes) reasons.push('patch-digest-mismatch');
-		const rawManifests = raw.attempts.flatMap(attempt => [
-			attempt.stdout,
-			attempt.stderr,
-			...(attempt.report === undefined ? [] : [attempt.report]),
-		]).map(artifact => ({
-			name: artifact.name,
-			mediaType: artifact.mediaType,
-			sha256: artifact.sha256,
-			sizeBytes: artifact.sizeBytes,
-		}));
-		if (sha256Canonical(rawManifests) !== sha256Canonical(receipt.evidence.artifacts)) {
-			reasons.push('artifact-manifest-mismatch');
-		}
-		for (const attempt of raw.attempts) {
-			const artifacts = [
-				{kind: 'stdout' as const, artifact: attempt.stdout},
-				{kind: 'stderr' as const, artifact: attempt.stderr},
-				...(attempt.report === undefined
-					? []
-					: [{kind: 'report' as const, artifact: attempt.report}]),
-			];
-			for (const entry of artifacts) {
-				if (entry.artifact.contentBase64 === undefined) {
-					continue;
-				}
-				try {
-					const stored = await readFile(path.join(
-						runDirectory,
-						'artifacts',
-						artifactFileName(attempt.lane, attempt.phase, attempt.attempt, entry.kind),
-					));
-					if (sha256Bytes(stored) !== entry.artifact.sha256
-						|| stored.byteLength !== entry.artifact.sizeBytes) {
-						reasons.push('artifact-digest-mismatch');
-					}
-				} catch {
-					reasons.push('artifact-missing-or-unreadable');
-				}
-			}
-		}
-	} catch {
-		reasons.push('schema-or-canonicalization-failure');
-	}
+export function receiptDigest(receiptInput: ReceiptV1): Sha256 {
+  return Sha256Schema.parse(sha256(canonicalReceiptBytes(receiptInput)));
+}
 
-	return {valid: reasons.length === 0, reasons};
+export function verifyReceipt(receiptInput: unknown, expectedDigest: string): ReceiptV1 {
+  const receipt = ReceiptSchema.parse(receiptInput);
+  const actualDigest = receiptDigest(receipt);
+  if (actualDigest !== expectedDigest.trim()) throw new Error('Receipt digest does not match canonical content');
+  return receipt;
+}
+
+export interface PersistRunOptions {
+  readonly receipt: ReceiptV1;
+  readonly request: VerificationRequestV1;
+  readonly evidence: RawVerificationEvidenceV1;
+  readonly classifications: readonly ClassifiedAttemptV1[];
+  readonly normalizedPatch: string;
+}
+
+export class FileReceiptStore {
+  readonly #baseDirectory: string;
+  readonly #writer: AtomicWriter;
+  readonly #redactor: Redactor;
+
+  constructor(options: {
+    readonly baseDirectory: string;
+    readonly redactor: Redactor;
+    readonly writer?: AtomicWriter;
+  }) {
+    this.#baseDirectory = options.baseDirectory;
+    this.#redactor = options.redactor;
+    this.#writer = options.writer ?? new FileAtomicWriter();
+  }
+
+  async persist(options: PersistRunOptions): Promise<{directory: string; digest: Sha256}> {
+    const receipt = ReceiptSchema.parse(options.receipt);
+    const request = VerificationRequestSchema.parse(options.request);
+    const sanitizedEvidence = sanitizeEvidence(options.evidence, this.#redactor);
+    if (receipt.runId !== request.runId || receipt.runId !== sanitizedEvidence.runId) {
+      throw new Error('Run identifiers do not match persisted receipt inputs');
+    }
+    const runDirectory = join(this.#baseDirectory, receipt.runId);
+    await mkdir(join(runDirectory, 'artifacts'), {recursive: true, mode: 0o700});
+    const digest = receiptDigest(receipt);
+    const existingReceiptPath = join(runDirectory, 'receipt.json');
+    if (await pathExists(existingReceiptPath)) {
+      const existing = JSON.parse(await readFile(existingReceiptPath, 'utf8')) as unknown;
+      verifyReceipt(existing, digest);
+      return {directory: runDirectory, digest};
+    }
+
+    await this.#writer.write(join(runDirectory, 'candidate.json'), canonicalBytes(receipt.candidate));
+    const redactedPatch = this.#redactor.redact(options.normalizedPatch);
+    if (redactedPatch !== options.normalizedPatch) {
+      throw new Error('Patch contains a configured or high-risk secret and cannot be persisted');
+    }
+    await this.#writer.write(join(runDirectory, 'patch.diff'), Buffer.from(options.normalizedPatch, 'utf8'));
+    const rawEvidenceBytes = canonicalBytes(sanitizedEvidence);
+    if (sha256(rawEvidenceBytes) !== receipt.evidence.rawEvidenceSha256) {
+      throw new Error('Receipt raw-evidence digest does not match redacted persisted evidence');
+    }
+    await this.#writer.write(join(runDirectory, 'raw-evidence.json'), rawEvidenceBytes);
+    await this.#writer.write(
+      join(runDirectory, 'classified-evidence.json'),
+      canonicalBytes(receipt.classifications),
+    );
+    for (const [index, attempt] of sanitizedEvidence.attempts.entries()) {
+      await this.#persistArtifact(runDirectory, `${String(index)}-stdout`, attempt.stdout);
+      await this.#persistArtifact(runDirectory, `${String(index)}-stderr`, attempt.stderr);
+      if (attempt.report !== undefined) {
+        await this.#persistArtifact(runDirectory, `${String(index)}-report`, attempt.report);
+      }
+    }
+    await this.#writer.write(existingReceiptPath, canonicalReceiptBytes(receipt));
+    await this.#writer.write(join(runDirectory, 'receipt.sha256'), Buffer.from(`${digest}\n`, 'utf8'));
+    return {directory: runDirectory, digest};
+  }
+
+  async verify(directory: string): Promise<ReceiptV1> {
+    const receiptValue = JSON.parse(await readFile(join(directory, 'receipt.json'), 'utf8')) as unknown;
+    const expectedDigest = await readFile(join(directory, 'receipt.sha256'), 'utf8');
+    const receipt = verifyReceipt(receiptValue, expectedDigest);
+    const patch = await readFile(join(directory, 'patch.diff'));
+    if (sha256(patch) !== receipt.patch.sha256) throw new Error('Persisted patch digest does not match receipt');
+    return receipt;
+  }
+
+  async #persistArtifact(directory: string, stem: string, artifact: ArtifactV1): Promise<void> {
+    if (artifact.contentBase64 === undefined) return;
+    await this.#writer.write(
+      join(directory, 'artifacts', `${stem}.bin`),
+      Buffer.from(artifact.contentBase64, 'base64'),
+    );
+  }
+}
+
+function sanitizeEvidence(evidenceInput: RawVerificationEvidenceV1, redactor: Redactor): RawVerificationEvidenceV1 {
+  const evidence = RawVerificationEvidenceSchema.parse(evidenceInput);
+  return RawVerificationEvidenceSchema.parse(redactStructured({
+    ...evidence,
+    attempts: evidence.attempts.map((attempt) => ({
+      ...attempt,
+      stdout: sanitizeArtifact(attempt.stdout, redactor),
+      stderr: sanitizeArtifact(attempt.stderr, redactor),
+      ...(attempt.report === undefined ? {} : {report: sanitizeArtifact(attempt.report, redactor)}),
+    })),
+  }, redactor));
+}
+
+function sanitizeArtifact(artifact: ArtifactV1, redactor: Redactor): ArtifactV1 {
+  if (artifact.contentBase64 === undefined) return artifact;
+  const decoded = Buffer.from(artifact.contentBase64, 'base64');
+  let text: string;
+  try {
+    text = new TextDecoder('utf-8', {fatal: true}).decode(decoded);
+  } catch {
+    return artifact;
+  }
+  const redacted = Buffer.from(redactor.redact(text), 'utf8');
+  return {
+    ...artifact,
+    sha256: Sha256Schema.parse(sha256(redacted)),
+    sizeBytes: redacted.byteLength,
+    contentBase64: redacted.toString('base64'),
+  };
+}
+
+function omitContent(artifact: ArtifactV1): Omit<ArtifactV1, 'contentBase64'> {
+  return {
+    name: artifact.name,
+    mediaType: artifact.mediaType,
+    sha256: artifact.sha256,
+    sizeBytes: artifact.sizeBytes,
+  };
+}
+
+function canonicalBytes(value: unknown): Buffer {
+  return Buffer.from(canonicalize(value), 'utf8');
+}
+
+function redactStructured(value: unknown, redactor: Redactor): unknown {
+  if (typeof value === 'string') return redactor.redact(value);
+  if (Array.isArray(value)) return value.map((entry) => redactStructured(entry, redactor));
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, redactStructured(entry, redactor)]),
+    );
+  }
+  return value;
+}
+
+function sha256(value: string | Buffer): string {
+  return `sha256:${createHash('sha256').update(value).digest('hex')}`;
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path, fileConstants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }

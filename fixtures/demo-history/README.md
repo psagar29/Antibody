@@ -1,20 +1,16 @@
-# Deterministic demo history
+# Deterministic missing-test history
 
-`history.fi` is a dependency-free Git fast-import stream with fixed identities,
-timestamps, paths, modes, and bytes. It creates four commits on `main`:
+`history.fi` imports a dependency-free Node ESM repository with four commits:
 
-1. a buggy `slugify` implementation with a passing existing test;
-2. an irrelevant documentation change;
-3. a source-only fix that collapses repeated whitespace; and
-4. an unrelated compatible source addition at current `HEAD`.
+1. a buggy whitespace slugifier with a passing single-space test;
+2. an irrelevant documentation commit;
+3. a production-only repeated-whitespace fix; and
+4. a compatible current head.
 
-`recovered-test.diff` adds the missing behavior-specific Node test. The same
-patch fails on the fix parent and passes on the fix and current `HEAD`.
+`recovered-test.patch` adds the omitted regression test. `expected.json` pins the generated commit SHAs, ranking order, patch/signature digests, and expected verdict. Rebuild these files with:
 
-Build a disposable checkout with Node 22+:
-
-```text
-node --experimental-strip-types scripts/build-demo-fixture.ts <empty-directory>
+```bash
+node --experimental-strip-types scripts/build-demo-fixture.ts
 ```
 
-The builder never deletes or overwrites an existing repository.
+The builder uses `git fast-import` with fixed identities and timestamps. It never embeds a nested `.git` directory.
