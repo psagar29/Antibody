@@ -12,7 +12,7 @@ MODEL/SESSION REQUIREMENT
 - Repository: https://github.com/psagar29/Antibody
 - Your only branch: team/person-b-core
 - Expected base tag: contracts-v1.0.0
-- Ignore obsolete branch team/person-b-core-tenor. Do not delete or modify it.
+- Do not create or use the obsolete branch name team/person-b-core-tenor.
 - Do not commit, merge, push, or open a PR from any other branch.
 
 OUTCOME
