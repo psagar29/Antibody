@@ -1,4 +1,4 @@
-import {mkdtemp, rm} from 'node:fs/promises';
+import {mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 
@@ -10,6 +10,7 @@ import {
 	parseNameStatus,
 	parseRawChanges,
 } from '../../../src/adapters/git/history-miner.js';
+import {decodeUtf8, runGit} from '../../../src/adapters/git/git-process.js';
 import {rankCandidates} from '../../../src/core/ranking/ranker.js';
 
 const temporaryDirectories: string[] = [];
@@ -96,5 +97,38 @@ describe('GitHistoryMiner', () => {
 				newMode: '100644',
 			},
 		]);
+	});
+
+	test('always excludes commits that touch tests even if legacy config disables the hint', async () => {
+		const repositoryRoot = await temporaryRepository();
+		await writeFile(path.join(repositoryRoot, 'src/slug.js'), 'export const changed = true;\n', 'utf8');
+		await writeFile(path.join(repositoryRoot, 'test/slug.test.js'), "test('changed', () => {});\n", 'utf8');
+		await runGit(repositoryRoot, ['add', '--', 'src/slug.js', 'test/slug.test.js']);
+		await runGit(repositoryRoot, ['commit', '-m', 'fix source and test together'], {
+			environment: {
+				GIT_AUTHOR_DATE: '2024-01-05T00:00:00Z',
+				GIT_COMMITTER_DATE: '2024-01-05T00:00:00Z',
+			},
+		});
+		const unsafeSha = decodeUtf8((await runGit(repositoryRoot, ['rev-parse', 'HEAD'])).stdout).trim();
+		const commits = await new GitHistoryMiner().scan({
+			repositoryRoot,
+			repository: {
+				slug: 'example/antibody-demo',
+				cloneUrl: 'https://github.com/example/antibody-demo.git',
+			},
+			scan: {
+				maxCommits: 20,
+				includeProduction: ['src/**/*.js', '**/*.js'],
+				testGlobs: ['test/**'],
+				allowedSupportGlobs: ['test/**'],
+				excludeGlobs: [],
+				maxChangedFiles: 12,
+				maxChangedLines: 400,
+				excludeMerges: true,
+				requireNoTestChanges: false,
+			},
+		});
+		expect(commits.map(commit => commit.fixSha)).not.toContain(unsafeSha);
 	});
 });

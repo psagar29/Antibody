@@ -331,7 +331,7 @@ export class GitHistoryMiner {
 				const testPatterns = [...request.scan.testGlobs, ...request.scan.allowedSupportGlobs];
 				const changedTestPaths = changedPaths.filter(repositoryPath =>
 					matchesAnyGlob(repositoryPath, testPatterns));
-				if (request.scan.requireNoTestChanges && changedTestPaths.length > 0) {
+				if (changedTestPaths.length > 0) {
 					continue;
 				}
 

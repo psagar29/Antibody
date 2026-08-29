@@ -6,6 +6,7 @@ import {
 } from '../../../src/contracts/index.js';
 import {sha256Bytes} from '../../../src/core/digest.js';
 import {classifyAttempt} from '../../../src/core/classification/classifier.js';
+import {normalizeVolatileText} from '../../../src/core/classification/failure-normalization.js';
 import {
 	parseJsonTestReport,
 	parseJunitReport,
@@ -189,6 +190,15 @@ describe('classifyAttempt', () => {
 	test('does not treat a nonzero exit code without reporter evidence as proof', () => {
 		expect(classifyAttempt(0, attempt({exitCode: 7}), 'tap', ['target']).outcome).toBe(
 			'unknown-failure',
+		);
+	});
+
+	test('normalizes external paths, timestamps, line numbers, IDs, temp roots, and ANSI', () => {
+		const value = '\u001B[31mError at C:\\agents\\checkout\\outside.js:41:9 '
+			+ '/home/runner/work/repo/outside.js:7 '
+			+ '2024-01-01T00:00:00.000Z 11111111-1111-4111-8111-111111111111\u001B[0m';
+		expect(normalizeVolatileText(value)).toBe(
+			'Error at <external-path>:<line>:<column> <external-path>:<line>:<column> <timestamp> <id>',
 		);
 	});
 });
