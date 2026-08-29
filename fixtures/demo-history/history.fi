@@ -1,0 +1,81 @@
+feature done
+commit refs/heads/main
+mark :1
+author Antibody Fixture <fixture@antibody.invalid> 1704067200 +0000
+committer Antibody Fixture <fixture@antibody.invalid> 1704067200 +0000
+data 21
+feat: add slug helper
+M 100644 inline package.json
+data 123
+{
+  "name": "antibody-demo-history",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
+
+M 100644 inline src/slug.js
+data 90
+export function slugify(value) {
+  return value.trim().toLowerCase().replace(' ', '-');
+}
+
+M 100644 inline test/slug.test.js
+data 208
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {slugify} from '../src/slug.js';
+
+test('slugifies two words', () => {
+  assert.equal(slugify('Hello World'), 'hello-world');
+});
+
+
+commit refs/heads/main
+mark :2
+author Antibody Fixture <fixture@antibody.invalid> 1704153600 +0000
+committer Antibody Fixture <fixture@antibody.invalid> 1704153600 +0000
+data 25
+docs: explain slug output
+from :1
+M 100644 inline README.md
+data 44
+# Slugs
+
+Lowercase words joined by hyphens.
+
+
+commit refs/heads/main
+mark :3
+author Antibody Fixture <fixture@antibody.invalid> 1704240000 +0000
+committer Antibody Fixture <fixture@antibody.invalid> 1704240000 +0000
+data 42
+fix: collapse repeated whitespace in slugs
+from :2
+M 100644 inline src/slug.js
+data 94
+export function slugify(value) {
+  return value.trim().toLowerCase().replace(/\s+/gu, '-');
+}
+
+
+commit refs/heads/main
+mark :4
+author Antibody Fixture <fixture@antibody.invalid> 1704326400 +0000
+committer Antibody Fixture <fixture@antibody.invalid> 1704326400 +0000
+data 33
+refactor: name the slug separator
+from :3
+M 100644 inline src/slug.js
+data 139
+export const slugSeparator = '-';
+
+export function slugify(value) {
+  return value.trim().toLowerCase().replace(/\s+/gu, slugSeparator);
+}
+
+
+done
