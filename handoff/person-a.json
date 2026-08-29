@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "antibody.handoff/v1",
+  "owner": "person-a",
+  "branch": "team/person-a-runloop-reflex",
+  "baseCommit": "3c0076aa38fe10eb0cc892f9156ca9aa6ee2ee10",
+  "headCommit": "6a565f7f3a721867c78d8f06b948665a8bb87c50",
+  "ownedPaths": [
+    "src/adapters/runloop/**",
+    "src/adapters/reflex/**",
+    "test/adapters/runloop/**",
+    "test/adapters/reflex/**",
+    "docs/runloop-reflex.md",
+    "handoff/person-a.json"
+  ],
+  "commits": [
+    {
+      "sha": "68b6221b3cb530a5492c5a86082b6382d1f00eeb",
+      "subject": "test: add Runloop adapter contract fixtures"
+    },
+    {
+      "sha": "1bd37ac514907be2dc522e576609373341f32078",
+      "subject": "feat: implement paired Runloop raw evidence executor"
+    },
+    {
+      "sha": "6697b285bd70508c4fb3ba2d2223dd4a3a07b5b3",
+      "subject": "test: cover Runloop lifecycle and failure cleanup"
+    },
+    {
+      "sha": "1fffc7669d637c9a7f66b46af9af169166c243fa",
+      "subject": "test: add Reflex session contract fixtures"
+    },
+    {
+      "sha": "8a1795bda4f703bd654e566f2b2ba012c9f174f7",
+      "subject": "feat: implement Reflex agent session transport"
+    },
+    {
+      "sha": "6a565f7f3a721867c78d8f06b948665a8bb87c50",
+      "subject": "docs: add Runloop and Reflex setup runbook"
+    }
+  ],
+  "contractsConsumed": [
+    "antibody.agent-invocation/v1",
+    "antibody.agent-result/v1",
+    "antibody.verification-request/v1",
+    "antibody.raw-evidence/v1"
+  ],
+  "commandsRun": [
+    "git fetch origin --tags",
+    "git switch team/person-a-runloop-reflex",
+    "git pull --ff-only origin team/person-a-runloop-reflex",
+    "git rev-parse HEAD",
+    "git rev-parse contracts-v1.0.0^{}",
+    "git merge-base --is-ancestor contracts-v1.0.0 HEAD",
+    "pnpm install --frozen-lockfile",
+    "pnpm vitest run test/contracts/contracts.test.ts",
+    "pnpm vitest run test/adapters/runloop test/adapters/reflex",
+    "pnpm typecheck",
+    "pnpm lint",
+    "pnpm build",
+    "pnpm check"
+  ],
+  "testResults": [
+    {
+      "name": "baseline contracts and repository check",
+      "passed": true,
+      "details": "Required base and tag both resolved to 3c0076aa38fe10eb0cc892f9156ca9aa6ee2ee10; frozen install, typecheck, 16 contract tests, and baseline pnpm check passed before edits."
+    },
+    {
+      "name": "Person A focused adapter suite",
+      "passed": true,
+      "details": "6 test files and 47 tests passed for Runloop and Reflex, including failure cleanup, timeouts, aborts, replay deduplication, redaction, hashing, output bounds, and idempotent stop."
+    },
+    {
+      "name": "full repository gate",
+      "passed": true,
+      "details": "pnpm check passed: schema check, ESLint, TypeScript, 7 test files with 63 tests, and both tsup builds."
+    },
+    {
+      "name": "handoff schema validation",
+      "passed": true,
+      "details": "handoff/person-a.json validated against schemas/handoff-v1.schema.json and the frozen HandoffSchema."
+    }
+  ],
+  "liveChecks": [
+    {
+      "name": "Runloop paired live verification and cleanup",
+      "status": "blocked",
+      "artifact": "docs/runloop-reflex.md"
+    },
+    {
+      "name": "Reflex launch continuation stream and stop",
+      "status": "blocked",
+      "artifact": "docs/runloop-reflex.md"
+    }
+  ],
+  "requiredEnvironmentNames": [
+    "RUNLOOP_API_KEY",
+    "ANTIBODY_RUNLOOP_BLUEPRINT_ID",
+    "ANTIBODY_RUNLOOP_SNAPSHOT_ID",
+    "ANTIBODY_RUNLOOP_NETWORK_POLICY_ID",
+    "GITHUB_TOKEN",
+    "REFLEX_API_KEY",
+    "REFLEX_BASE_URL",
+    "REFLEX_ORGANIZATION_ID",
+    "ANTIBODY_REFLEX_PERSONA_ID"
+  ],
+  "knownIssues": [
+    "No live provider check ran because every required Runloop, GitHub, and Reflex environment name was unset. Provisioning, private mount authentication, billable cleanup, Reflex WebSocket connectivity, and UI state remain unverified live.",
+    "Person A could not edit the frozen root export or composition paths. Person C must export and instantiate the adapter factories before the package build exposes them through the public entry point.",
+    "Runloop cost is omitted because the consumed API responses do not expose attributable run cost. Cleanup failures are recorded in raw evidence and require operator follow-up.",
+    "Runloop standard shapes X_SMALL through XX_LARGE are supported. CUSTOM_SIZE cannot be constructed from the frozen request because it has no CPU, memory, or disk fields.",
+    "Reflex stop deduplication is process-local; a process restart may issue the documented idempotent stop sequence again.",
+    "headCommit records the final implementation and documentation commit immediately before this self-referential handoff-manifest commit; the final branch tip is reported separately at handoff."
+  ],
+  "integrationInstructions": [
+    "Import createRunloopVerificationAdapter from src/adapters/runloop/index.ts and createReflexAgentSessionAdapter from src/adapters/reflex/index.ts, then add root exports in Person C-owned composition/public entry paths.",
+    "Supply durable persistArtifact and persistRawEvidence callbacks to the Runloop factory. Do not discard the pre-cleanup evidence write; Person B consumes only RawVerificationEvidenceV1 and owns all classification.",
+    "Resolve secret values in the composition root from the configured environment-variable names. Pass GitHub mount credentials only to the Runloop factory and never into command env or evidence.",
+    "Let Person B build prompts and parse bounded Reflex finalText. New sessions use the configured Persona; repair attempts pass the returned continuationId back unchanged.",
+    "Keep the critical controller outside Reflex: Person C invokes Reflex for authoring, Person B validates the patch, Runloop executes proof, and Person B/GitHub handle judgment and publication.",
+    "Run the budget-bounded live procedure in docs/runloop-reflex.md before release and confirm every Runloop Devbox id reaches shutdown."
+  ],
+  "contractChangeRequests": []
+}
