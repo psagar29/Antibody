@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "antibody.demo-history/v1",
+  "baseSha": "5b3d0c05b605b6b4363ac5bef124b2ce87c4c686",
+  "docsSha": "66e82fb6b511eccffc879042c61bf45100067881",
+  "fixSha": "e2398bf45efca03a24dbb9101a52cf1c70ea0fe0",
+  "headSha": "1bcd48e2eba3a5ed823460b6763c90f49efca6b3",
+  "candidateOrder": [
+    "e2398bf45efca03a24dbb9101a52cf1c70ea0fe0",
+    "1bcd48e2eba3a5ed823460b6763c90f49efca6b3"
+  ],
+  "patchSha256": "sha256:b476eab1b29fcac4afd72fd5b979db87f6ae5ed9fa69c5af284cf5652898dcc3",
+  "normalizedParentSignature": "sha256:88d2095e77d1193bb64328ad42670eb9f6ccfd869ac666a71ce915ab2370d962",
+  "verdict": "verified"
+}

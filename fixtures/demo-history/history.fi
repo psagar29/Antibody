@@ -1,0 +1,101 @@
+blob
+mark :1
+data <<PACKAGE
+{"name":"antibody-demo-history","private":true,"type":"module","scripts":{"test":"node --test"}}
+PACKAGE
+
+blob
+mark :2
+data <<BUGGY_SLUG
+export function slugify(value) {
+	return value.trim().toLowerCase().replace(' ', '-');
+}
+BUGGY_SLUG
+
+blob
+mark :3
+data <<BASE_TEST
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {slugify} from '../src/slug.js';
+
+test('slugifies words', () => {
+  assert.equal(slugify('Hello World'), 'hello-world');
+});
+BASE_TEST
+
+blob
+mark :4
+data <<BASE_README
+# Antibody demo history
+
+A deterministic repository used to recover a missing regression test.
+BASE_README
+
+commit refs/heads/main
+mark :10
+author Antibody Fixture <fixture@antibody.invalid> 1704067200 +0000
+committer Antibody Fixture <fixture@antibody.invalid> 1704067200 +0000
+data <<BASE_COMMIT
+feat: add buggy slugify base
+BASE_COMMIT
+M 100644 :1 package.json
+M 100644 :2 src/slug.js
+M 100644 :3 test/slug.test.js
+M 100644 :4 README.md
+
+blob
+mark :5
+data <<DOCS_README
+# Antibody demo history
+
+A deterministic repository used to recover a missing regression test.
+
+The history is intentionally small enough to audit by hand.
+DOCS_README
+
+commit refs/heads/main
+mark :11
+author Antibody Fixture <fixture@antibody.invalid> 1704067260 +0000
+committer Antibody Fixture <fixture@antibody.invalid> 1704067260 +0000
+data <<DOCS_COMMIT
+docs: explain deterministic history
+DOCS_COMMIT
+from :10
+M 100644 :5 README.md
+
+blob
+mark :6
+data <<FIXED_SLUG
+export function slugify(value) {
+	return value.trim().toLowerCase().replace(/\s+/gu, '-');
+}
+FIXED_SLUG
+
+commit refs/heads/main
+mark :12
+author Antibody Fixture <fixture@antibody.invalid> 1704067320 +0000
+committer Antibody Fixture <fixture@antibody.invalid> 1704067320 +0000
+data <<FIX_COMMIT
+fix: collapse repeated whitespace in slugs
+FIX_COMMIT
+from :11
+M 100644 :6 src/slug.js
+
+blob
+mark :7
+data <<VERSION_SOURCE
+export const demoVersion = '1';
+VERSION_SOURCE
+
+commit refs/heads/main
+mark :13
+author Antibody Fixture <fixture@antibody.invalid> 1704067380 +0000
+committer Antibody Fixture <fixture@antibody.invalid> 1704067380 +0000
+data <<HEAD_COMMIT
+chore: expose demo version
+HEAD_COMMIT
+from :12
+M 100644 :7 src/version.js
+
+done
