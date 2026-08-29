@@ -23,6 +23,8 @@ export interface FakeRunloopOptions {
   readonly fault?: FakeRunloopFault;
   readonly faultCommand?: string;
   readonly runningExecutions?: boolean;
+  readonly abortController?: AbortController;
+  readonly abortOnCommand?: string;
   readonly truncatedCommand?: string;
   readonly outputText?: string;
 }
@@ -49,7 +51,7 @@ function makeDevbox(
 export class FakeRunloopControl {
   readonly createParams: DevboxCreateParams[] = [];
   readonly commands: string[] = [];
-  readonly uploads: Array<{devboxId: string; path: string; content: Uint8Array}> = [];
+  readonly uploads: {devboxId: string; path: string; content: Uint8Array}[] = [];
   readonly killed: string[] = [];
   readonly shutdowns: string[] = [];
   readonly events: string[] = [];
@@ -65,9 +67,9 @@ export class FakeRunloopControl {
     this.#options = options;
   }
 
-  async retrieveBlueprint(id: string): Promise<BlueprintView> {
-    if (this.#options.fault === 'resolve') throw new Error('resolve failed');
-    return {
+  retrieveBlueprint(id: string): Promise<BlueprintView> {
+    if (this.#options.fault === 'resolve') return Promise.reject(new Error('resolve failed'));
+    return Promise.resolve({
       id,
       create_time_ms: 1_788_019_200_000,
       name: 'fixture-blueprint',
@@ -77,12 +79,12 @@ export class FakeRunloopControl {
       },
       state: 'created',
       status: 'build_complete',
-    };
+    });
   }
 
-  async querySnapshot(id: string): Promise<DevboxSnapshotAsyncStatusView> {
-    if (this.#options.fault === 'resolve') throw new Error('resolve failed');
-    return {
+  querySnapshot(id: string): Promise<DevboxSnapshotAsyncStatusView> {
+    if (this.#options.fault === 'resolve') return Promise.reject(new Error('resolve failed'));
+    return Promise.resolve({
       status: 'complete',
       snapshot: {
         id,
@@ -91,12 +93,12 @@ export class FakeRunloopControl {
         source_devbox_id: 'devbox_source',
         source_blueprint_id: 'bpt_fixture',
       },
-    };
+    });
   }
 
-  async retrieveNetworkPolicy(id: string): Promise<NetworkPolicyView> {
-    if (this.#options.fault === 'resolve') throw new Error('resolve failed');
-    return {
+  retrieveNetworkPolicy(id: string): Promise<NetworkPolicyView> {
+    if (this.#options.fault === 'resolve') return Promise.reject(new Error('resolve failed'));
+    return Promise.resolve({
       id,
       create_time_ms: 1_788_019_200_000,
       update_time_ms: 1_788_019_200_000,
@@ -110,13 +112,13 @@ export class FakeRunloopControl {
         allowed_cidrs: [],
         allowed_hostnames: ['github.com', 'registry.npmjs.org'],
       },
-    };
+    });
   }
 
-  async createDevbox(params: DevboxCreateParams): Promise<DevboxView> {
-    if (this.#options.fault === 'create') throw new Error('create failed');
+  createDevbox(params: DevboxCreateParams): Promise<DevboxView> {
+    if (this.#options.fault === 'create') return Promise.reject(new Error('create failed'));
     this.#createCount += 1;
-    const id = `devbox_${this.#createCount}`;
+    const id = `devbox_${String(this.#createCount)}`;
     this.createParams.push(params);
     const status = this.#options.fault === 'provision' ? 'queued' : 'running';
     const view = makeDevbox(id, params, status);
@@ -124,42 +126,49 @@ export class FakeRunloopControl {
     this.#active += 1;
     this.maxActive = Math.max(this.maxActive, this.#active);
     this.events.push(`create:${id}`);
-    return view;
+    return Promise.resolve(view);
   }
 
-  async retrieveDevbox(id: string): Promise<DevboxView> {
+  retrieveDevbox(id: string): Promise<DevboxView> {
     const view = this.#devboxes.get(id);
-    if (view === undefined) throw new Error('unknown devbox');
+    if (view === undefined) return Promise.reject(new Error('unknown devbox'));
     if (this.#options.fault === 'provision' && view.status !== 'shutdown') {
-      throw new Error('provision polling failed');
+      return Promise.reject(new Error('provision polling failed'));
     }
-    return view;
+    return Promise.resolve(view);
   }
 
-  async uploadFile(devboxId: string, path: string, content: Uint8Array): Promise<void> {
-    if (this.#options.fault === 'upload') throw new Error('upload failed');
+  uploadFile(devboxId: string, path: string, content: Uint8Array): Promise<void> {
+    if (this.#options.fault === 'upload') return Promise.reject(new Error('upload failed'));
     this.uploads.push({devboxId, path, content});
+    return Promise.resolve();
   }
 
-  async executeAsync(
+  executeAsync(
     devboxId: string,
     command: string,
   ): Promise<DevboxAsyncExecutionDetailView> {
     this.commands.push(command);
     this.#executionCount += 1;
-    const executionId = `exec_${this.#executionCount}`;
+    const executionId = `exec_${String(this.#executionCount)}`;
     if (
       this.#options.fault === 'execute' &&
       (this.#options.faultCommand === undefined || command.includes(this.#options.faultCommand))
     ) {
-      throw new Error('execute failed');
+      return Promise.reject(new Error('execute failed'));
     }
     const checkout = /'git' 'checkout' '--detach' '([0-9a-f]{40})'/u.exec(command);
     if (checkout?.[1] !== undefined) this.#checkouts.set(devboxId, checkout[1]);
     const stdout = this.#stdout(devboxId, command);
     const truncated =
       this.#options.truncatedCommand !== undefined && command.includes(this.#options.truncatedCommand);
-    return {
+    if (
+      this.#options.abortController !== undefined &&
+      (this.#options.abortOnCommand === undefined || command.includes(this.#options.abortOnCommand))
+    ) {
+      this.#options.abortController.abort();
+    }
+    return Promise.resolve({
       devbox_id: devboxId,
       execution_id: executionId,
       status: this.#options.runningExecutions === true ? 'running' : 'completed',
@@ -168,37 +177,41 @@ export class FakeRunloopControl {
       stderr: '',
       stdout_truncated: truncated,
       stderr_truncated: false,
-    };
+    });
   }
 
-  async retrieveExecution(
+  retrieveExecution(
     devboxId: string,
     executionId: string,
   ): Promise<DevboxAsyncExecutionDetailView> {
-    return {
+    return Promise.resolve({
       devbox_id: devboxId,
       execution_id: executionId,
       status: 'running',
       stdout: '',
       stderr: '',
-    };
+    });
   }
 
-  async killExecution(_devboxId: string, executionId: string): Promise<void> {
+  killExecution(devboxId: string, executionId: string): Promise<void> {
+    void devboxId;
     this.killed.push(executionId);
+    return Promise.resolve();
   }
 
-  async readFile(_devboxId: string, _path: string): Promise<string> {
-    if (this.#options.fault === 'report') throw new Error('report unavailable');
-    return 'TAP version 13\n1..1\nok 1 - fixture\n';
+  readFile(devboxId: string, path: string): Promise<string> {
+    void devboxId;
+    void path;
+    if (this.#options.fault === 'report') return Promise.reject(new Error('report unavailable'));
+    return Promise.resolve('TAP version 13\n1..1\nok 1 - fixture\n');
   }
 
-  async shutdown(devboxId: string): Promise<DevboxView> {
+  shutdown(devboxId: string): Promise<DevboxView> {
     this.shutdowns.push(devboxId);
     this.events.push(`shutdown:${devboxId}`);
-    if (this.#options.fault === 'shutdown') throw new Error('shutdown failed');
+    if (this.#options.fault === 'shutdown') return Promise.reject(new Error('shutdown failed'));
     const prior = this.#devboxes.get(devboxId);
-    if (prior === undefined) throw new Error('unknown devbox');
+    if (prior === undefined) return Promise.reject(new Error('unknown devbox'));
     const view = makeDevbox(devboxId, {
       launch_parameters: prior.launch_parameters,
       metadata: prior.metadata,
@@ -207,7 +220,7 @@ export class FakeRunloopControl {
     }, 'shutdown');
     this.#devboxes.set(devboxId, view);
     this.#active -= 1;
-    return view;
+    return Promise.resolve(view);
   }
 
   #stdout(devboxId: string, command: string): string {
@@ -234,13 +247,15 @@ export class FakeRunloopPersistence {
     this.events = events;
   }
 
-  async persistArtifact(name: string, content: Uint8Array): Promise<void> {
-    if (this.failArtifacts) throw new Error('artifact persistence failed');
+  persistArtifact(name: string, content: Uint8Array): Promise<void> {
+    if (this.failArtifacts) return Promise.reject(new Error('artifact persistence failed'));
     this.artifacts.set(name, content);
+    return Promise.resolve();
   }
 
-  async persistRawEvidence(evidence: RawVerificationEvidenceV1): Promise<void> {
+  persistRawEvidence(evidence: RawVerificationEvidenceV1): Promise<void> {
     this.evidence.push(evidence);
     this.events.push('persist:evidence');
+    return Promise.resolve();
   }
 }

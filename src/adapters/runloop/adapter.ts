@@ -130,6 +130,7 @@ interface RemoteRunResult {
   readonly attempt: RawExecutionAttemptV1;
   readonly completed: boolean;
   readonly aborted: boolean;
+  readonly stdoutText: string;
 }
 
 interface AttemptContext {
@@ -297,9 +298,7 @@ function networkPolicyDigest(policy: NetworkPolicyView): `sha256:${string}` {
               protocol: port.protocol ?? null,
             }))
             .toSorted((left, right) =>
-              `${left.protocol}:${left.port}:${left.endPort ?? ''}`.localeCompare(
-                `${right.protocol}:${right.port}:${right.endPort ?? ''}`,
-              ),
+              JSON.stringify(left).localeCompare(JSON.stringify(right)),
             ),
         }))
         .toSorted((left, right) => left.cidr.localeCompare(right.cidr)),
@@ -596,8 +595,7 @@ export class RunloopVerificationAdapter implements VerificationExecutionPort {
       const status = await this.#control.querySnapshot(request.environment.source.id, signal);
       if (
         status.status !== 'complete' ||
-        status.snapshot == null ||
-        status.snapshot.id !== request.environment.source.id
+        status.snapshot?.id !== request.environment.source.id
       ) {
         throw new AntibodyError('Configured Snapshot is not complete and resolvable', {
           code: 'ANTB_EXTERNAL_UNAVAILABLE',
@@ -892,8 +890,7 @@ export class RunloopVerificationAdapter implements VerificationExecutionPort {
       },
       signal,
     );
-    const stdout = this.#artifactText(verified.attempt.stdout);
-    if (!verified.completed || stdout.trim() !== checkoutSha) {
+    if (!verified.completed || verified.stdoutText.trim() !== checkoutSha) {
       throw new AntibodyError('Runloop checkout did not resolve to the requested full SHA', {
         code: 'ANTB_EXTERNAL_UNAVAILABLE',
         category: 'external',
@@ -938,7 +935,7 @@ export class RunloopVerificationAdapter implements VerificationExecutionPort {
       },
       signal,
     );
-    const digestText = this.#artifactText(digest.attempt.stdout).trim().split(/\s+/u)[0];
+    const digestText = digest.stdoutText.trim().split(/\s+/u)[0];
     if (!digest.completed || digestText !== state.request.patch.sha256.slice('sha256:'.length)) {
       throw new AntibodyError('Patch digest inside Devbox differs from controller bytes', {
         code: 'ANTB_EXTERNAL_UNAVAILABLE',
@@ -993,7 +990,7 @@ export class RunloopVerificationAdapter implements VerificationExecutionPort {
         causeCode: 'PATCH_PATH_VERIFICATION_FAILED',
       });
     }
-    const observed = this.#artifactText(changed.attempt.stdout)
+    const observed = changed.stdoutText
       .split('\n')
       .map((line) => line.slice(3).trim())
       .filter((line) => line.length > 0)
@@ -1093,15 +1090,14 @@ export class RunloopVerificationAdapter implements VerificationExecutionPort {
 
     const stdoutText = detail?.stdout ?? '';
     const stderrText = platformError.length > 0 ? platformError : (detail?.stderr ?? '');
-    const suffix = detail?.stdout_truncated === true || detail?.stderr_truncated === true
-      ? '.truncated'
-      : '';
+    const stdoutSuffix = detail?.stdout_truncated === true ? '.truncated' : '';
+    const stderrSuffix = detail?.stderr_truncated === true ? '.truncated' : '';
     const stdout = await this.#artifact(
-      `${context.lane}-${context.phase}-${attempt}.stdout${suffix}.txt`,
+      `${context.lane}-${context.phase}-${String(attempt)}.stdout${stdoutSuffix}.txt`,
       stdoutText,
     );
     const stderr = await this.#artifact(
-      `${context.lane}-${context.phase}-${attempt}.stderr${suffix}.txt`,
+      `${context.lane}-${context.phase}-${String(attempt)}.stderr${stderrSuffix}.txt`,
       stderrText,
     );
     const report = await this.#readReport(
@@ -1136,6 +1132,7 @@ export class RunloopVerificationAdapter implements VerificationExecutionPort {
       attempt: rawAttempt,
       completed: termination === 'exited' && rawAttempt.exitCode === 0,
       aborted,
+      stdoutText,
     };
   }
 
@@ -1159,7 +1156,7 @@ export class RunloopVerificationAdapter implements VerificationExecutionPort {
     try {
       const content = await this.#control.readFile(devbox.id, absolute, signal);
       return await this.#artifact(
-        `${context.lane}-${context.phase}-${attempt}.report.${request.report.format}`,
+        `${context.lane}-${context.phase}-${String(attempt)}.report.${request.report.format}`,
         content,
       );
     } catch {
@@ -1179,12 +1176,6 @@ export class RunloopVerificationAdapter implements VerificationExecutionPort {
         ? {contentBase64: redacted.toString('base64')}
         : {}),
     });
-  }
-
-  #artifactText(artifact: ArtifactV1): string {
-    return artifact.contentBase64 === undefined
-      ? ''
-      : Buffer.from(artifact.contentBase64, 'base64').toString('utf8');
   }
 
   #nextAttempt(
@@ -1248,6 +1239,18 @@ export class RunloopVerificationAdapter implements VerificationExecutionPort {
     ) {
       mismatchFields.push('requestedNetworkPolicyId');
     }
+    if (
+      state.source.kind === 'blueprint' &&
+      state.parent.provider.resolvedBlueprintId !== state.source.id
+    ) {
+      mismatchFields.push('requestedBlueprintId');
+    }
+    if (
+      state.source.kind === 'snapshot' &&
+      state.parent.provider.resolvedSnapshotId !== state.source.id
+    ) {
+      mismatchFields.push('requestedSnapshotId');
+    }
     return {
       equivalent: mismatchFields.length === 0,
       comparedFields: fields,
@@ -1266,7 +1269,9 @@ export class RunloopVerificationAdapter implements VerificationExecutionPort {
     devbox.active = false;
     state.cleanup.set(devbox.id, {devboxId: devbox.id, requested: true, completed: false});
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.#shutdownTimeoutMs);
+    const timer = setTimeout(() => {
+      controller.abort();
+    }, this.#shutdownTimeoutMs);
     try {
       let view = await this.#control.shutdown(devbox.id, controller.signal);
       const deadline = this.#clock.nowMs() + this.#shutdownTimeoutMs;

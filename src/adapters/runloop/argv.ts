@@ -55,7 +55,7 @@ export function renderPosixCommand(command: CommandSpecV1, repositoryRoot: strin
     'timeout',
     '--signal=TERM',
     '--kill-after=5s',
-    quotePosixArgument(`${timeoutSeconds}s`),
+    quotePosixArgument(`${String(timeoutSeconds)}s`),
     '--',
     ...argv,
   ].join(' ');
