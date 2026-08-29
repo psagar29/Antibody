@@ -1,0 +1,568 @@
+{
+  "$id": "https://github.com/psagar29/Antibody/schemas/config-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authoring": {
+      "additionalProperties": false,
+      "properties": {
+        "maxAttempts": {
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxOutputBytes": {
+          "maximum": 1048576,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "personaIdEnv": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "type": "string"
+        },
+        "provider": {
+          "const": "reflex",
+          "type": "string"
+        },
+        "timeoutMs": {
+          "maximum": 1800000,
+          "minimum": 1000,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "provider",
+        "personaIdEnv",
+        "maxAttempts",
+        "timeoutMs",
+        "maxOutputBytes"
+      ],
+      "type": "object"
+    },
+    "policy": {
+      "additionalProperties": false,
+      "properties": {
+        "forbidBinary": {
+          "type": "boolean"
+        },
+        "forbidSubmodules": {
+          "type": "boolean"
+        },
+        "forbidSymlinks": {
+          "type": "boolean"
+        },
+        "maxAddedLines": {
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxPatchBytes": {
+          "maximum": 10485760,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxPatchFiles": {
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "requireCurrentHeadPass": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "maxPatchBytes",
+        "maxPatchFiles",
+        "maxAddedLines",
+        "forbidBinary",
+        "forbidSymlinks",
+        "forbidSubmodules",
+        "requireCurrentHeadPass"
+      ],
+      "type": "object"
+    },
+    "publication": {
+      "additionalProperties": false,
+      "properties": {
+        "branchPrefix": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "draft": {
+          "const": true,
+          "type": "boolean"
+        },
+        "labels": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "provider": {
+          "const": "github",
+          "type": "string"
+        },
+        "tokenEnv": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "tokenEnv",
+        "draft",
+        "branchPrefix",
+        "labels"
+      ],
+      "type": "object"
+    },
+    "repository": {
+      "additionalProperties": false,
+      "properties": {
+        "baseBranch": {
+          "default": "main",
+          "maxLength": 255,
+          "minLength": 1,
+          "type": "string"
+        },
+        "slug": {
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "baseBranch"
+      ],
+      "type": "object"
+    },
+    "scan": {
+      "additionalProperties": false,
+      "properties": {
+        "allowedSupportGlobs": {
+          "items": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "excludeGlobs": {
+          "items": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "excludeMerges": {
+          "type": "boolean"
+        },
+        "includeProduction": {
+          "items": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "maxChangedFiles": {
+          "maximum": 10000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxChangedLines": {
+          "maximum": 1000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxCommits": {
+          "maximum": 10000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "requireNoTestChanges": {
+          "type": "boolean"
+        },
+        "since": {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "type": "string"
+        },
+        "testGlobs": {
+          "items": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "maxCommits",
+        "includeProduction",
+        "testGlobs",
+        "allowedSupportGlobs",
+        "excludeGlobs",
+        "maxChangedFiles",
+        "maxChangedLines",
+        "excludeMerges",
+        "requireNoTestChanges"
+      ],
+      "type": "object"
+    },
+    "schemaVersion": {
+      "const": "antibody.config/v1",
+      "type": "string"
+    },
+    "verification": {
+      "additionalProperties": false,
+      "properties": {
+        "commands": {
+          "additionalProperties": false,
+          "properties": {
+            "baseline": {
+              "additionalProperties": false,
+              "properties": {
+                "argv": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "prefixItems": [
+                    {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  ],
+                  "type": "array"
+                },
+                "cwd": {
+                  "maxLength": 4096,
+                  "minLength": 1,
+                  "pattern": "^(?!\\/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\u0000)(?!\\.\\.(?:\\/|$))(?!.*\\/\\.\\.(?:\\/|$))(?!.*\\/\\/)(?!.*\\/$).+$",
+                  "type": "string"
+                },
+                "env": {
+                  "additionalProperties": {
+                    "maxLength": 16384,
+                    "type": "string"
+                  },
+                  "propertyNames": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "timeoutMs": {
+                  "maximum": 1800000,
+                  "minimum": 1000,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "argv",
+                "cwd",
+                "env",
+                "timeoutMs"
+              ],
+              "type": "object"
+            },
+            "fullSuite": {
+              "additionalProperties": false,
+              "properties": {
+                "argv": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "prefixItems": [
+                    {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  ],
+                  "type": "array"
+                },
+                "cwd": {
+                  "maxLength": 4096,
+                  "minLength": 1,
+                  "pattern": "^(?!\\/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\u0000)(?!\\.\\.(?:\\/|$))(?!.*\\/\\.\\.(?:\\/|$))(?!.*\\/\\/)(?!.*\\/$).+$",
+                  "type": "string"
+                },
+                "env": {
+                  "additionalProperties": {
+                    "maxLength": 16384,
+                    "type": "string"
+                  },
+                  "propertyNames": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "timeoutMs": {
+                  "maximum": 1800000,
+                  "minimum": 1000,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "argv",
+                "cwd",
+                "env",
+                "timeoutMs"
+              ],
+              "type": "object"
+            },
+            "setup": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "argv": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "prefixItems": [
+                      {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  "cwd": {
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "pattern": "^(?!\\/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\u0000)(?!\\.\\.(?:\\/|$))(?!.*\\/\\.\\.(?:\\/|$))(?!.*\\/\\/)(?!.*\\/$).+$",
+                    "type": "string"
+                  },
+                  "env": {
+                    "additionalProperties": {
+                      "maxLength": 16384,
+                      "type": "string"
+                    },
+                    "propertyNames": {
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "timeoutMs": {
+                    "maximum": 1800000,
+                    "minimum": 1000,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "argv",
+                  "cwd",
+                  "env",
+                  "timeoutMs"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "targeted": {
+              "additionalProperties": false,
+              "properties": {
+                "argv": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "prefixItems": [
+                    {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  ],
+                  "type": "array"
+                },
+                "cwd": {
+                  "maxLength": 4096,
+                  "minLength": 1,
+                  "pattern": "^(?!\\/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\u0000)(?!\\.\\.(?:\\/|$))(?!.*\\/\\.\\.(?:\\/|$))(?!.*\\/\\/)(?!.*\\/$).+$",
+                  "type": "string"
+                },
+                "env": {
+                  "additionalProperties": {
+                    "maxLength": 16384,
+                    "type": "string"
+                  },
+                  "propertyNames": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "timeoutMs": {
+                  "maximum": 1800000,
+                  "minimum": 1000,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "argv",
+                "cwd",
+                "env",
+                "timeoutMs"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "setup",
+            "baseline",
+            "targeted"
+          ],
+          "type": "object"
+        },
+        "environment": {
+          "additionalProperties": false,
+          "properties": {
+            "architecture": {
+              "enum": [
+                "x86_64",
+                "arm64"
+              ],
+              "type": "string"
+            },
+            "maxParallel": {
+              "anyOf": [
+                {
+                  "const": 1,
+                  "type": "number"
+                },
+                {
+                  "const": 2,
+                  "type": "number"
+                }
+              ]
+            },
+            "networkPolicyIdEnv": {
+              "pattern": "^[A-Z][A-Z0-9_]*$",
+              "type": "string"
+            },
+            "source": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "idEnv": {
+                      "pattern": "^[A-Z][A-Z0-9_]*$",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "const": "blueprint",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "idEnv"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "idEnv": {
+                      "pattern": "^[A-Z][A-Z0-9_]*$",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "const": "snapshot",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "idEnv"
+                  ],
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "required": [
+            "source",
+            "maxParallel"
+          ],
+          "type": "object"
+        },
+        "provider": {
+          "const": "runloop",
+          "type": "string"
+        },
+        "repetitions": {
+          "anyOf": [
+            {
+              "const": 2,
+              "type": "number"
+            },
+            {
+              "const": 3,
+              "type": "number"
+            },
+            {
+              "const": 4,
+              "type": "number"
+            },
+            {
+              "const": 5,
+              "type": "number"
+            }
+          ]
+        },
+        "report": {
+          "additionalProperties": false,
+          "properties": {
+            "format": {
+              "enum": [
+                "tap",
+                "junit",
+                "vitest-json",
+                "jest-json",
+                "pytest-text"
+              ],
+              "type": "string"
+            },
+            "path": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "pattern": "^(?!\\/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\u0000)(?!\\.\\.(?:\\/|$))(?!.*\\/\\.\\.(?:\\/|$))(?!.*\\/\\/)(?!.*\\/$).+$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "format"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "provider",
+        "environment",
+        "repetitions",
+        "commands",
+        "report"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "repository",
+    "scan",
+    "authoring",
+    "verification",
+    "policy",
+    "publication"
+  ],
+  "type": "object"
+}

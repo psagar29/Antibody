@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - '@runloop/reflex-client@0.20.0'
+  - zod@4.5.4

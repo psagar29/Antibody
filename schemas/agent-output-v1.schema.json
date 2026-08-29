@@ -1,0 +1,41 @@
+{
+  "$id": "https://github.com/psagar29/Antibody/schemas/agent-output-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "candidateId": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "patchBase64": {
+      "maxLength": 1500000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "antibody.agent-output/v1",
+      "type": "string"
+    },
+    "summary": {
+      "maxLength": 1024,
+      "minLength": 1,
+      "type": "string"
+    },
+    "testCommandHint": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 128,
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "candidateId",
+    "patchBase64",
+    "testCommandHint",
+    "summary"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,422 @@
+{
+  "$id": "https://github.com/psagar29/Antibody/schemas/verification-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "attempts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "attempt": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "checkoutSha": {
+            "pattern": "^[0-9a-f]{40}$",
+            "type": "string"
+          },
+          "command": {
+            "additionalProperties": false,
+            "properties": {
+              "argv": {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "prefixItems": [
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                ],
+                "type": "array"
+              },
+              "cwd": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "pattern": "^(?!\\/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\u0000)(?!\\.\\.(?:\\/|$))(?!.*\\/\\.\\.(?:\\/|$))(?!.*\\/\\/)(?!.*\\/$).+$",
+                "type": "string"
+              },
+              "env": {
+                "additionalProperties": {
+                  "maxLength": 16384,
+                  "type": "string"
+                },
+                "propertyNames": {
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              "timeoutMs": {
+                "maximum": 1800000,
+                "minimum": 1000,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "argv",
+              "cwd",
+              "env",
+              "timeoutMs"
+            ],
+            "type": "object"
+          },
+          "durationMs": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "exitCode": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finishedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "type": "string"
+          },
+          "lane": {
+            "enum": [
+              "parent",
+              "fix",
+              "head"
+            ],
+            "type": "string"
+          },
+          "patchSha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "phase": {
+            "enum": [
+              "setup",
+              "baseline",
+              "candidate",
+              "full-suite"
+            ],
+            "type": "string"
+          },
+          "provider": {
+            "additionalProperties": false,
+            "properties": {
+              "architecture": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "devboxId": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "executionId": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "networkPolicyId": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "resolvedBlueprintId": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "resolvedNetworkPolicySha256": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "resolvedSnapshotId": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "shape": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "devboxId"
+            ],
+            "type": "object"
+          },
+          "report": {
+            "additionalProperties": false,
+            "properties": {
+              "contentBase64": {
+                "maxLength": 1500000,
+                "type": "string"
+              },
+              "mediaType": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "name": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "sizeBytes": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "name",
+              "mediaType",
+              "sha256",
+              "sizeBytes"
+            ],
+            "type": "object"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "type": "string"
+          },
+          "stderr": {
+            "additionalProperties": false,
+            "properties": {
+              "contentBase64": {
+                "maxLength": 1500000,
+                "type": "string"
+              },
+              "mediaType": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "name": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "sizeBytes": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "name",
+              "mediaType",
+              "sha256",
+              "sizeBytes"
+            ],
+            "type": "object"
+          },
+          "stdout": {
+            "additionalProperties": false,
+            "properties": {
+              "contentBase64": {
+                "maxLength": 1500000,
+                "type": "string"
+              },
+              "mediaType": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "name": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "sizeBytes": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "name",
+              "mediaType",
+              "sha256",
+              "sizeBytes"
+            ],
+            "type": "object"
+          },
+          "termination": {
+            "enum": [
+              "exited",
+              "timed-out",
+              "signaled",
+              "platform-error"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "lane",
+          "phase",
+          "attempt",
+          "checkoutSha",
+          "command",
+          "startedAt",
+          "finishedAt",
+          "durationMs",
+          "termination",
+          "exitCode",
+          "stdout",
+          "stderr",
+          "provider"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "candidateId": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "cleanup": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "completed": {
+            "type": "boolean"
+          },
+          "devboxId": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "errorCode": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "requested": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "devboxId",
+          "requested",
+          "completed"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "environmentEquivalence": {
+      "additionalProperties": false,
+      "properties": {
+        "comparedFields": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "equivalent": {
+          "type": "boolean"
+        },
+        "mismatchFields": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "equivalent",
+        "comparedFields",
+        "mismatchFields"
+      ],
+      "type": "object"
+    },
+    "patchSha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "reflex": {
+      "additionalProperties": false,
+      "properties": {
+        "agentId": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "axonId": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "name": {
+          "const": "reflex",
+          "type": "string"
+        },
+        "personaId": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "streamId": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "agentId"
+      ],
+      "type": "object"
+    },
+    "runId": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+      "type": "string"
+    },
+    "runloopCostUsd": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "schemaVersion": {
+      "const": "antibody.raw-evidence/v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "runId",
+    "candidateId",
+    "patchSha256",
+    "environmentEquivalence",
+    "attempts",
+    "cleanup"
+  ],
+  "type": "object"
+}

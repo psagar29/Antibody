@@ -1,0 +1,149 @@
+{
+  "$id": "https://github.com/psagar29/Antibody/schemas/candidate-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "candidateId": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "commit": {
+      "additionalProperties": false,
+      "properties": {
+        "additions": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "authoredAt": {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+          "type": "string"
+        },
+        "changedProductionPaths": {
+          "items": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "pattern": "^(?!\\/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\u0000)(?!\\.\\.(?:\\/|$))(?!.*\\/\\.\\.(?:\\/|$))(?!.*\\/\\/)(?!.*\\/$).+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "changedTestPaths": {
+          "items": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "pattern": "^(?!\\/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\u0000)(?!\\.\\.(?:\\/|$))(?!.*\\/\\.\\.(?:\\/|$))(?!.*\\/\\/)(?!.*\\/$).+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "deletions": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "diffSha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "subject": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject",
+        "authoredAt",
+        "changedProductionPaths",
+        "changedTestPaths",
+        "additions",
+        "deletions",
+        "diffSha256"
+      ],
+      "type": "object"
+    },
+    "fixSha": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "headSha": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "parentSha": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "repository": {
+      "additionalProperties": false,
+      "properties": {
+        "cloneUrl": {
+          "pattern": "^https:\\/\\/github\\.com\\/[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+\\.git$",
+          "type": "string"
+        },
+        "slug": {
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "slug",
+        "cloneUrl"
+      ],
+      "type": "object"
+    },
+    "schemaVersion": {
+      "const": "antibody.candidate/v1",
+      "type": "string"
+    },
+    "score": {
+      "maximum": 100,
+      "minimum": 0,
+      "type": "number"
+    },
+    "signals": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "evidence": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "type": "string"
+          },
+          "weight": {
+            "maximum": 100,
+            "minimum": -100,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "weight",
+          "evidence"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "candidateId",
+    "repository",
+    "parentSha",
+    "fixSha",
+    "headSha",
+    "commit",
+    "signals",
+    "score"
+  ],
+  "type": "object"
+}

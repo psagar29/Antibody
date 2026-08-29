@@ -1,0 +1,181 @@
+{
+  "$id": "https://github.com/psagar29/Antibody/schemas/handoff-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "baseCommit": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "branch": {
+      "maxLength": 255,
+      "minLength": 1,
+      "type": "string"
+    },
+    "commandsRun": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "commits": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "sha": {
+            "pattern": "^[0-9a-f]{40}$",
+            "type": "string"
+          },
+          "subject": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha",
+          "subject"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "contractChangeRequests": {
+      "items": {
+        "maxLength": 4096,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "contractsConsumed": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "headCommit": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "integrationInstructions": {
+      "items": {
+        "maxLength": 4096,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "knownIssues": {
+      "items": {
+        "maxLength": 4096,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "liveChecks": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact": {
+            "maxLength": 2048,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "blocked",
+              "not-run"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "status"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "ownedPaths": {
+      "items": {
+        "maxLength": 1024,
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "owner": {
+      "enum": [
+        "person-a",
+        "person-b"
+      ],
+      "type": "string"
+    },
+    "requiredEnvironmentNames": {
+      "items": {
+        "pattern": "^[A-Z][A-Z0-9_]*$",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "schemaVersion": {
+      "const": "antibody.handoff/v1",
+      "type": "string"
+    },
+    "testResults": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "details": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "passed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "passed",
+          "details"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "owner",
+    "branch",
+    "baseCommit",
+    "headCommit",
+    "ownedPaths",
+    "commits",
+    "contractsConsumed",
+    "commandsRun",
+    "testResults",
+    "liveChecks",
+    "requiredEnvironmentNames",
+    "knownIssues",
+    "integrationInstructions",
+    "contractChangeRequests"
+  ],
+  "type": "object"
+}

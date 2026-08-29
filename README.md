@@ -172,15 +172,16 @@ Relevant prior art will be documented explicitly. Antibody's differentiated clai
 
 ## Development
 
-Bootstrap, test, lint, type-check, packaging, and local-demo commands will be added with the first implementation slice. The target developer experience is:
+The frozen contract baseline requires Node 22+ and pnpm 11.24.0:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm check
-pnpm demo:offline
+pnpm build
+pnpm antibody --help
 ```
 
-The offline demo will require no cloud credentials. Live Runloop, Reflex, GitHub, and model-provider credentials will be opt-in and documented separately.
+`pnpm check` regenerates the JSON Schemas in check-only mode, then runs lint, strict type-checking, tests, and the production build. The offline demo is not implemented yet. Future live Runloop, Reflex, GitHub, and model-provider use will be opt-in and documented separately.
 
 ## License
 

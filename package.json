@@ -1,0 +1,63 @@
+{
+  "name": "@psagar29/antibody",
+  "version": "0.0.0",
+  "description": "Recover and causally verify regression tests omitted from merged bug fixes.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.24.0",
+  "files": [
+    "dist",
+    "schemas",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "bin": {
+    "antibody": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./contracts": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "schema:generate": "pnpm build && node scripts/generate-schemas.mjs",
+    "schema:check": "pnpm build && node scripts/generate-schemas.mjs --check",
+    "check": "pnpm schema:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "antibody": "node dist/cli.js"
+  },
+  "dependencies": {
+    "@octokit/rest": "22.0.1",
+    "@runloop/api-client": "1.31.0",
+    "@runloop/reflex-client": "0.20.0",
+    "commander": "15.0.0",
+    "fast-glob": "3.3.3",
+    "ignore": "7.0.6",
+    "json-canonicalize": "3.0.0",
+    "picocolors": "1.1.1",
+    "yaml": "2.9.0",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.1",
+    "eslint": "10.9.1",
+    "tsup": "8.5.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.68.0",
+    "vitest": "4.1.11"
+  }
+}

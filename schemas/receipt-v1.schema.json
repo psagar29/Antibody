@@ -1,0 +1,579 @@
+{
+  "$id": "https://github.com/psagar29/Antibody/schemas/receipt-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "candidate": {
+      "additionalProperties": false,
+      "properties": {
+        "candidateId": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "commit": {
+          "additionalProperties": false,
+          "properties": {
+            "additions": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "authoredAt": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+              "type": "string"
+            },
+            "changedProductionPaths": {
+              "items": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "pattern": "^(?!\\/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\u0000)(?!\\.\\.(?:\\/|$))(?!.*\\/\\.\\.(?:\\/|$))(?!.*\\/\\/)(?!.*\\/$).+$",
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "changedTestPaths": {
+              "items": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "pattern": "^(?!\\/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\u0000)(?!\\.\\.(?:\\/|$))(?!.*\\/\\.\\.(?:\\/|$))(?!.*\\/\\/)(?!.*\\/$).+$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "deletions": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "diffSha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "subject": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "subject",
+            "authoredAt",
+            "changedProductionPaths",
+            "changedTestPaths",
+            "additions",
+            "deletions",
+            "diffSha256"
+          ],
+          "type": "object"
+        },
+        "fixSha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "headSha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "parentSha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "repository": {
+          "additionalProperties": false,
+          "properties": {
+            "cloneUrl": {
+              "pattern": "^https:\\/\\/github\\.com\\/[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+\\.git$",
+              "type": "string"
+            },
+            "slug": {
+              "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "slug",
+            "cloneUrl"
+          ],
+          "type": "object"
+        },
+        "schemaVersion": {
+          "const": "antibody.candidate/v1",
+          "type": "string"
+        },
+        "score": {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        "signals": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "evidence": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              "weight": {
+                "maximum": 100,
+                "minimum": -100,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "code",
+              "weight",
+              "evidence"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "candidateId",
+        "repository",
+        "parentSha",
+        "fixSha",
+        "headSha",
+        "commit",
+        "signals",
+        "score"
+      ],
+      "type": "object"
+    },
+    "classifications": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "type": "string"
+          },
+          "explanation": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "pass",
+              "assertion-failure",
+              "behavioral-failure",
+              "unrelated-test-failure",
+              "collection-failure",
+              "build-failure",
+              "dependency-failure",
+              "timeout",
+              "crash",
+              "platform-failure",
+              "unknown-failure"
+            ],
+            "type": "string"
+          },
+          "rawAttemptIndex": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "signature": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "targetTestNames": {
+            "items": {
+              "maxLength": 1024,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "rawAttemptIndex",
+          "outcome",
+          "targetTestNames",
+          "explanation",
+          "confidence"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "costs": {
+      "additionalProperties": false,
+      "properties": {
+        "modelUsd": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "runloopUsd": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "createdAt": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+      "type": "string"
+    },
+    "environment": {
+      "additionalProperties": false,
+      "properties": {
+        "comparedFields": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "equivalent": {
+          "type": "boolean"
+        },
+        "mismatchFields": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "networkPolicyId": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "blueprint",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "maxLength": 512,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "snapshot",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "required": [
+        "equivalent",
+        "comparedFields",
+        "mismatchFields",
+        "source"
+      ],
+      "type": "object"
+    },
+    "evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "mediaType": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "name": {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              "sha256": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "sizeBytes": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "name",
+              "mediaType",
+              "sha256",
+              "sizeBytes"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "cleanup": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "completed": {
+                "type": "boolean"
+              },
+              "devboxId": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "errorCode": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "requested": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "devboxId",
+              "requested",
+              "completed"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "rawEvidenceSha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "reflex": {
+          "additionalProperties": false,
+          "properties": {
+            "agentId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "axonId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "name": {
+              "const": "reflex",
+              "type": "string"
+            },
+            "personaId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "streamId": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "agentId"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "rawEvidenceSha256",
+        "artifacts",
+        "cleanup"
+      ],
+      "type": "object"
+    },
+    "patch": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "additionalProperties": false,
+          "properties": {
+            "mediaType": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "sizeBytes": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "name",
+            "mediaType",
+            "sha256",
+            "sizeBytes"
+          ],
+          "type": "object"
+        },
+        "changedPaths": {
+          "items": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "pattern": "^(?!\\/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\u0000)(?!\\.\\.(?:\\/|$))(?!.*\\/\\.\\.(?:\\/|$))(?!.*\\/\\/)(?!.*\\/$).+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "sha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "sizeBytes": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sha256",
+        "sizeBytes",
+        "changedPaths",
+        "artifact"
+      ],
+      "type": "object"
+    },
+    "policy": {
+      "additionalProperties": false,
+      "properties": {
+        "allowedGlobs": {
+          "items": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "testOnly": {
+          "type": "boolean"
+        },
+        "violations": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "detail": {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              "path": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "pattern": "^(?!\\/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\u0000)(?!\\.\\.(?:\\/|$))(?!.*\\/\\.\\.(?:\\/|$))(?!.*\\/\\/)(?!.*\\/$).+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "detail"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "testOnly",
+        "allowedGlobs",
+        "violations"
+      ],
+      "type": "object"
+    },
+    "reasonCodes": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "runId": {
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "antibody.receipt/v1",
+      "type": "string"
+    },
+    "verdict": {
+      "enum": [
+        "verified",
+        "rejected",
+        "inconclusive"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "runId",
+    "candidate",
+    "patch",
+    "policy",
+    "environment",
+    "classifications",
+    "evidence",
+    "costs",
+    "verdict",
+    "reasonCodes",
+    "createdAt"
+  ],
+  "type": "object"
+}
