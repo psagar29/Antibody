@@ -1,0 +1,189 @@
+{
+  "schemaVersion": "antibody.handoff/v1",
+  "owner": "person-b",
+  "branch": "team/person-b-core",
+  "baseCommit": "3c0076aa38fe10eb0cc892f9156ca9aa6ee2ee10",
+  "headCommit": "7db72015b075fe384f4ffb1d25c6fdd70a93bf86",
+  "ownedPaths": [
+    "src/core/**",
+    "src/adapters/git/**",
+    "src/adapters/github/**",
+    "test/core/**",
+    "test/adapters/git/**",
+    "test/adapters/github/**",
+    "fixtures/demo-history/**",
+    "scripts/build-demo-fixture.ts",
+    "docs/domain-model.md",
+    "docs/real-repo-p-timeout.md",
+    "handoff/person-b.json"
+  ],
+  "commits": [
+    {
+      "sha": "27f216fbe3cf76a9cc8103f6bd325ccc44a91334",
+      "subject": "test: add deterministic missing-test history fixture"
+    },
+    {
+      "sha": "9ed5cf9ae36f06d478df72f20e84d7a13e9c68d0",
+      "subject": "feat: implement history miner and candidate ranker"
+    },
+    {
+      "sha": "dc7e7f7f0a7a5c1b7bb729582cf911adfe133e0b",
+      "subject": "feat: enforce test-only patch policy"
+    },
+    {
+      "sha": "8d822b3832e2edf373eb446b618cc5b34230620e",
+      "subject": "feat: add bounded Codex authoring loop"
+    },
+    {
+      "sha": "4a5423fae6d9044ac6fe1a49125f0bb47c2dd8f4",
+      "subject": "feat: classify and adjudicate causal evidence"
+    },
+    {
+      "sha": "cc7324aab0708fff3e84fc3fe006c4152eb992a0",
+      "subject": "feat: build canonical receipts and tamper verification"
+    },
+    {
+      "sha": "425cdc8ceb8dd74c42cc4355312111f071ed7b73",
+      "subject": "feat: add idempotent GitHub draft publisher"
+    },
+    {
+      "sha": "f58eaeac33269d9d793e9e83e392f162051fb3ac",
+      "subject": "feat: orchestrate causal recovery through frozen ports"
+    },
+    {
+      "sha": "223ad6c075892f4e41b6991afd7a2933bccf7d02",
+      "subject": "docs: specify domain and p-timeout demo"
+    },
+    {
+      "sha": "7db72015b075fe384f4ffb1d25c6fdd70a93bf86",
+      "subject": "fix: harden candidate and signature invariants"
+    }
+  ],
+  "contractsConsumed": [
+    "AgentSessionPort",
+    "VerificationExecutionPort",
+    "AgentInvocationSchema",
+    "AgentInvocationResultSchema",
+    "AgentOutputSchema",
+    "RecoveryCandidateSchema",
+    "VerificationRequestSchema",
+    "RawExecutionAttemptSchema",
+    "RawVerificationEvidenceSchema",
+    "OutcomeKindSchema",
+    "ClassifiedAttemptSchema",
+    "ReceiptSchema",
+    "PublicationRecordSchema",
+    "ConfigSchema",
+    "HandoffSchema"
+  ],
+  "commandsRun": [
+    "git fetch origin --tags; git switch team/person-b-core; git pull --ff-only origin team/person-b-core",
+    "git rev-parse HEAD; git rev-parse contracts-v1.0.0^{}; git merge-base --is-ancestor contracts-v1.0.0 HEAD",
+    "npx --yes pnpm@11.24.0 install --frozen-lockfile",
+    "npx --yes pnpm@11.24.0 check (baseline before edits)",
+    ".\\node_modules\\.bin\\vitest.cmd run <focused Person B test files> before each implementation commit",
+    ".\\node_modules\\.bin\\tsc.cmd --noEmit before each implementation commit",
+    ".\\node_modules\\.bin\\eslint.cmd <focused Person B paths> before each implementation commit",
+    "npx --yes pnpm@11.24.0 check (final: schema check, lint, typecheck, 101 tests, and build)"
+  ],
+  "testResults": [
+    {
+      "name": "deterministic demo fixture",
+      "passed": true,
+      "details": "Fast-import reproduces the four exact SHAs, recovered patch digest, red parent, and green fix/current lanes."
+    },
+    {
+      "name": "history miner and ranking",
+      "passed": true,
+      "details": "4 tests cover golden order, NUL/path/mode parsing, and unconditional exclusion of commits touching tests."
+    },
+    {
+      "name": "patch policy and temporary-index materialization",
+      "passed": true,
+      "details": "18 tests cover the attack matrix, three-tree git apply checks, and worktree-free materialization."
+    },
+    {
+      "name": "bounded Codex authoring",
+      "passed": true,
+      "details": "12 tests cover malformed JSON/base64/UTF-8, injection framing, continuations, attempt budget, repair, no-repair, and final stop."
+    },
+    {
+      "name": "classification and adjudication",
+      "passed": true,
+      "details": "36 tests cover all reporter formats, every OutcomeKind, stable canonical signatures, volatile normalization, and the causal truth table."
+    },
+    {
+      "name": "canonical receipts",
+      "passed": true,
+      "details": "5 tests cover RFC 8785 golden hashing, redaction, atomic persistence, retry, injected rename failure, and receipt/patch/raw/artifact tampering."
+    },
+    {
+      "name": "GitHub draft publisher",
+      "passed": true,
+      "details": "7 tests cover exact approval, stale HEAD, marker dedupe, unrelated branch refusal, partial failure resume, draft-only behavior, and receipt opt-in."
+    },
+    {
+      "name": "fake-port end-to-end core",
+      "passed": true,
+      "details": "Authors through fake AgentSessionPort, policy-checks, executes through fake VerificationExecutionPort, classifies, verifies, and builds a receipt."
+    },
+    {
+      "name": "full repository check",
+      "passed": true,
+      "details": "pnpm 11.24.0 check passed schema regeneration check, ESLint, strict TypeScript, 11 files/101 tests, and tsup ESM/DTS builds."
+    }
+  ],
+  "liveChecks": [
+    {
+      "name": "contracts baseline identity",
+      "status": "passed",
+      "artifact": "contracts-v1.0.0 and initial branch HEAD both 3c0076aa38fe10eb0cc892f9156ca9aa6ee2ee10"
+    },
+    {
+      "name": "official GitHub REST surface and installed Octokit types",
+      "status": "passed",
+      "artifact": "src/adapters/github/octokit-publisher-client.ts"
+    },
+    {
+      "name": "p-timeout parent/fix/current source inspection and local red-green reproduction",
+      "status": "passed",
+      "artifact": "docs/real-repo-p-timeout.md"
+    },
+    {
+      "name": "live Runloop Snapshot execution",
+      "status": "not-run",
+      "artifact": "Requires Person A adapter plus configured external credentials/Snapshot."
+    },
+    {
+      "name": "live Reflex Codex session",
+      "status": "not-run",
+      "artifact": "Requires Person A adapter plus configured Persona and credentials."
+    },
+    {
+      "name": "live GitHub draft publication",
+      "status": "not-run",
+      "artifact": "No live write credential or writable-fork approval was used; publisher is covered by injected-client tests."
+    }
+  ],
+  "requiredEnvironmentNames": [
+    "ANTIBODY_REFLEX_PERSONA_ID",
+    "ANTIBODY_RUNLOOP_SNAPSHOT_ID",
+    "ANTIBODY_RUNLOOP_NETWORK_POLICY_ID",
+    "GITHUB_TOKEN"
+  ],
+  "knownIssues": [
+    "The live Reflex, Runloop, and GitHub write integrations were intentionally not exercised in this credential-free Person B lane.",
+    "p-timeout has no lockfile at the historical commits; causal lanes must share one prewarmed Snapshot as specified in docs/real-repo-p-timeout.md.",
+    "In-repository receipt publication is disabled by default; enable it only after the target project explicitly accepts .antibody/receipts content.",
+    "headCommit records the implementation/docs tip immediately before the manifest commit, avoiding an impossible self-referential commit hash."
+  ],
+  "integrationInstructions": [
+    "Person C: export and compose GitHistoryMiner/rankCandidates, CodexAuthoringModule, TestOnlyPatchPolicy, CausalRecoveryVerifier, receipt builder/store, and GitHubDraftPublisher from your owned composition and CLI paths.",
+    "Person A: inject the frozen AgentSessionPort and VerificationExecutionPort only. Preserve complete bounded UTF-8 reporter artifacts and provider/environment provenance; do not classify or adjudicate in transport adapters.",
+    "Pass discovered recovered-test names into CausalRecoveryVerifier so reporter failures can be attributed to the target rather than unrelated tests.",
+    "Before publish, load receipt.json plus receipt.sha256 and patch.diff from the verified run directory; require the human approval string to equal the canonical receipt digest exactly.",
+    "Construct OctokitPublisherClient with a token limited to contents read/write and pull-requests write. Do not grant merge, workflow, administration, or issue permissions.",
+    "Use the writable-fork and shared-Snapshot steps in docs/real-repo-p-timeout.md for the real demonstration."
+  ],
+  "contractChangeRequests": []
+}
