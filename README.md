@@ -6,7 +6,7 @@
 
 ## Status
 
-Antibody is under active development for the SF Codex Community Hackathon. The public contracts and team boundaries are being defined before parallel implementation begins.
+Antibody is under active development for the SF Codex Community Hackathon. The architecture and team contracts are frozen in the [implementation plan](docs/IMPLEMENTATION_PLAN.md). Person A and Person B have separate [Codex handoff prompts](docs/team/), and Person C owns integration and release.
 
 ## The problem
 
@@ -78,22 +78,21 @@ Reflex supplies the repeatable Codex Persona, GitHub or scheduled Automation, du
 
 ### Tenor
 
-Tenor is an optional accountability layer when the organizers provide supported access. The intended worker responsibility is:
-
-> Continuously audit merged bug fixes for missing regression tests within an explicit token, compute, repository, and write-authority budget.
-
-Tenor currently has no public developer API, SDK, or CLI. Antibody therefore keeps this integration behind an adapter and does not depend on undocumented behavior.
+Tenor helped organize the event but currently exposes no documented public developer API, SDK, CLI, or webhook contract. Antibody contains no Tenor or Slack implementation, adapter, stub, mock, or hidden dependency. A future integration requires supported documentation and access from Tenor.
 
 ## Planned CLI
 
 The installable package will expose one command:
 
 ```bash
-antibody scan owner/repository
-antibody inspect owner/repository --fix <full-sha>
-antibody verify --fix <full-sha> --patch ./candidate.patch
-antibody publish --receipt ./antibody.receipt.json
-antibody run owner/repository --fix <full-sha>
+antibody init --repo .
+antibody doctor
+antibody scan --repo . --limit 10
+antibody recover --repo . --commit <full-sha>
+antibody publish --receipt ./receipt.json --approval <sha256:...>
+antibody receipt verify ./receipt.json
+antibody receipt render ./receipt.json --output ./proof.html
+antibody demo fixture
 ```
 
 The exact package name and release command will be documented once the first executable vertical slice lands. Until then, commands above are the stable product contract, not a claim that a package is already published.
@@ -134,27 +133,27 @@ Antibody is intentionally conservative:
 The parallel implementation will converge on:
 
 ```text
-apps/
-  proof-viewer/       Judge-facing receipt visualization
-packages/
-  contracts/          Shared schemas and typed interfaces
-  core/               Mining, candidate policy, failure taxonomy
-  author/             Codex context and test-generation orchestration
-  runloop/            Paired Devbox verifier
-  reflex/             Persona and Automation integration
-  tenor/              Optional accountability adapter
-  github/             Test-only branch and pull-request publisher
-  receipt/            Canonical evidence format and hashing
+src/
+  contracts/          Frozen Zod schemas, types, ports, and errors
+  adapters/
+    runloop/           Paired Devbox raw-evidence executor
+    reflex/            Codex Persona session transport
+    git/               Historical commit mining
+    github/            Draft test-only PR publication
+  core/                Ranking, authoring, policy, classification, receipts
+  cli/                 Installable antibody command
+  composition/         Production and fake adapter wiring
+  viewer/              Self-contained static proof renderer
 fixtures/
-  omitted-regression/ Deterministic historical bug/fix demo
+  demo-history/        Deterministic git fast-import history
 docs/
-  architecture, threat model, prior art, operations, and handoffs
+  implementation plan, architecture, security, demo, and handoffs
 ```
 
 ## Parallel team branches
 
 - `team/person-a-runloop-reflex` — Runloop execution and Reflex orchestration
-- `team/person-b-core-tenor` — Antibody domain core, authoring, and Tenor-compatible accountability boundary
+- `team/person-b-core` — Antibody mining, authoring, classification, receipts, and GitHub publication
 - `team/person-c-integration` — integration, release engineering, installer, documentation, and final demo
 
 Changes merge through reviewed pull requests. Shared contracts are frozen before implementation so the two primary lanes can work without editing each other's directories.
@@ -181,7 +180,7 @@ pnpm check
 pnpm demo:offline
 ```
 
-The offline demo will require no cloud credentials. Live Runloop, Reflex, GitHub, model-provider, and optional Tenor credentials will be opt-in and documented separately.
+The offline demo will require no cloud credentials. Live Runloop, Reflex, GitHub, and model-provider credentials will be opt-in and documented separately.
 
 ## License
 
