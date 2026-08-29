@@ -55,7 +55,7 @@ Owns:
 
 Branch: `team/person-b-core`
 
-The obsolete `team/person-b-core-tenor` branch is ignored. Do not delete or force-push it during the hackathon; it is simply not part of the merge graph.
+Use only `team/person-b-core`. The mistakenly created `team/person-b-core-tenor` branch was deleted before implementation and must not be recreated.
 
 Owns:
 
