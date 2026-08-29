@@ -14,7 +14,15 @@ function sha(value: string): string {
 }
 
 function fixture() {
-  const patch = 'diff --git a/test/a.test.js b/test/a.test.js\n';
+  const patch = [
+    'diff --git a/test/a.test.js b/test/a.test.js',
+    '--- a/test/a.test.js',
+    '+++ b/test/a.test.js',
+    '@@ -1 +1,2 @@',
+    ' old();',
+    '+test();',
+    '',
+  ].join('\n');
   const patchDigest = `sha256:${createHash('sha256').update(patch).digest('hex')}`;
   const receipt = ReceiptSchema.parse({
     schemaVersion: 'antibody.receipt/v1',
@@ -56,11 +64,23 @@ function fixture() {
   return {
     receipt,
     patch,
-    files: [{path: RepoPathSchema.parse('test/a.test.js'), contentBase64: Buffer.from('test();\n').toString('base64')}],
+    files: [{
+      path: RepoPathSchema.parse('test/a.test.js'),
+      contentBase64: Buffer.from('old();\ntest();\n').toString('base64'),
+    }],
   };
 }
 
-function fakeControl(options: {baseSha?: string; branchSha?: string; existingPull?: boolean; nondraft?: boolean; failPullOnce?: boolean; failLabels?: boolean} = {}) {
+function fakeControl(options: {
+  baseSha?: string;
+  branchSha?: string;
+  existingPull?: boolean;
+  existingHeadRef?: string;
+  existingHeadSha?: string;
+  nondraft?: boolean;
+  failPullOnce?: boolean;
+  failLabels?: boolean;
+} = {}) {
   const calls: string[] = [];
   let branchSha = options.branchSha;
   let pullFailures = options.failPullOnce === true ? 1 : 0;
@@ -77,6 +97,10 @@ function fakeControl(options: {baseSha?: string; branchSha?: string; existingPul
     getCommit() {
       calls.push('getCommit');
       return Promise.resolve({sha: '3'.repeat(40), treeSha: sha('base-tree')});
+    },
+    getFile(parameters: {path: string}) {
+      calls.push(`getFile:${parameters.path}`);
+      return Promise.resolve(Buffer.from('old();\n'));
     },
     createBlob(parameters: {content: string}) {
       calls.push('createBlob');
@@ -110,7 +134,8 @@ function fakeControl(options: {baseSha?: string; branchSha?: string; existingPul
           htmlUrl: 'https://github.com/owner/repo/pull/7',
           body: `<!-- antibody-receipt: ${digest} -->`,
           draft: options.nondraft === true ? false : true,
-          headSha: commitSha,
+          headRef: options.existingHeadRef ?? 'antibody/222222222222-00000000',
+          headSha: options.existingHeadSha ?? commitSha,
           createdAt: '2026-08-29T00:00:03.000Z',
         },
       ]);
@@ -126,6 +151,7 @@ function fakeControl(options: {baseSha?: string; branchSha?: string; existingPul
         htmlUrl: 'https://github.com/owner/repo/pull/8',
         body: parameters.body ?? null,
         draft: parameters.draft ?? null,
+        headRef: 'antibody/222222222222-00000000',
         headSha: commitSha,
         createdAt: '2026-08-29T00:00:04.000Z',
       });
@@ -175,6 +201,21 @@ describe('GitHubDraftPublisher', () => {
     expect(fake.calls).toHaveLength(0);
   });
 
+  it('rejects file contents not produced by the approved patch before remote writes', async () => {
+    const fake = fakeControl();
+    const options = publishOptions();
+    await expect(
+      new GitHubDraftPublisher(fake.control).publish({
+        ...options,
+        files: [{
+          path: RepoPathSchema.parse('test/a.test.js'),
+          contentBase64: Buffer.from('malicious();\n').toString('base64'),
+        }],
+      }),
+    ).rejects.toMatchObject({code: 'ANTB_PUBLISH_CONFLICT'});
+    expect(fake.calls).toEqual(['getRef:heads/main', 'getFile:test/a.test.js']);
+  });
+
   it('refuses stale current-head proof and unrelated deterministic branches', async () => {
     const stale = fakeControl({baseSha: '4'.repeat(40)});
     await expect(new GitHubDraftPublisher(stale.control).publish(publishOptions())).rejects.toMatchObject({code: 'ANTB_PUBLISH_CONFLICT'});
@@ -193,6 +234,18 @@ describe('GitHubDraftPublisher', () => {
 
     const nondraft = fakeControl({existingPull: true, nondraft: true});
     await expect(new GitHubDraftPublisher(nondraft.control).publish(publishOptions())).rejects.toMatchObject({code: 'ANTB_PUBLISH_CONFLICT'});
+  });
+
+  it('refuses a copied receipt marker on the wrong branch or commit', async () => {
+    const wrongBranch = fakeControl({existingPull: true, existingHeadRef: 'attacker/copied'});
+    await expect(
+      new GitHubDraftPublisher(wrongBranch.control).publish(publishOptions()),
+    ).rejects.toMatchObject({code: 'ANTB_PUBLISH_CONFLICT'});
+
+    const wrongCommit = fakeControl({existingPull: true, existingHeadSha: '9'.repeat(40)});
+    await expect(
+      new GitHubDraftPublisher(wrongCommit.control).publish(publishOptions()),
+    ).rejects.toMatchObject({code: 'ANTB_PUBLISH_CONFLICT'});
   });
 
   it('recovers after a partial PR failure without duplicating the branch', async () => {

@@ -12,6 +12,7 @@ import {
   Sha256Schema,
 } from '../../contracts/index.js';
 import {Redactor, receiptDigest} from '../../core/receipts/receipt-store.js';
+import {materializeUnifiedDiff} from '../../core/policy/materialize-patch.js';
 
 type GetRefParameters = RestEndpointMethodTypes['git']['getRef']['parameters'];
 type GetCommitParameters = RestEndpointMethodTypes['git']['getCommit']['parameters'];
@@ -23,6 +24,7 @@ type UpdateRefParameters = RestEndpointMethodTypes['git']['updateRef']['paramete
 type ListPullsParameters = RestEndpointMethodTypes['pulls']['list']['parameters'];
 type CreatePullParameters = RestEndpointMethodTypes['pulls']['create']['parameters'];
 type AddLabelsParameters = RestEndpointMethodTypes['issues']['addLabels']['parameters'];
+type GetContentParameters = RestEndpointMethodTypes['repos']['getContent']['parameters'];
 
 interface ReferenceView {
   readonly sha: string;
@@ -38,6 +40,7 @@ interface PullView {
   readonly htmlUrl: string;
   readonly body: string | null;
   readonly draft: boolean | null;
+  readonly headRef: string;
   readonly headSha: string;
   readonly createdAt: string;
 }
@@ -45,6 +48,7 @@ interface PullView {
 interface GitHubControl {
   getRef(parameters: GetRefParameters): Promise<ReferenceView>;
   getCommit(parameters: GetCommitParameters): Promise<CommitView>;
+  getFile(parameters: GetContentParameters): Promise<Buffer | undefined>;
   createBlob(parameters: CreateBlobParameters): Promise<{readonly sha: string}>;
   createTree(parameters: CreateTreeParameters): Promise<{readonly sha: string}>;
   createCommit(parameters: CreateCommitParameters): Promise<{readonly sha: string}>;
@@ -70,6 +74,25 @@ class OctokitGitHubControl implements GitHubControl {
   async getCommit(parameters: GetCommitParameters): Promise<CommitView> {
     const response = await this.#octokit.rest.git.getCommit(parameters);
     return {sha: response.data.sha, treeSha: response.data.tree.sha};
+  }
+
+  async getFile(parameters: GetContentParameters): Promise<Buffer | undefined> {
+    try {
+      const response = await this.#octokit.rest.repos.getContent(parameters);
+      const data = response.data;
+      if (
+        Array.isArray(data) ||
+        data.type !== 'file' ||
+        data.encoding !== 'base64' ||
+        typeof data.content !== 'string'
+      ) {
+        throw publicationError('GitHub base path is not a regular file', 'ANTB_PUBLISH_CONFLICT');
+      }
+      return Buffer.from(data.content.replaceAll('\n', ''), 'base64');
+    } catch (error: unknown) {
+      if (httpStatus(error) === 404) return undefined;
+      throw error;
+    }
   }
 
   async createBlob(parameters: CreateBlobParameters): Promise<{readonly sha: string}> {
@@ -104,6 +127,7 @@ class OctokitGitHubControl implements GitHubControl {
       htmlUrl: pull.html_url,
       body: pull.body,
       draft: pull.draft ?? null,
+      headRef: pull.head.ref,
       headSha: pull.head.sha,
       createdAt: pull.created_at,
     }));
@@ -116,6 +140,7 @@ class OctokitGitHubControl implements GitHubControl {
       htmlUrl: response.data.html_url,
       body: response.data.body,
       draft: response.data.draft ?? null,
+      headRef: response.data.head.ref,
       headSha: response.data.head.sha,
       createdAt: response.data.created_at,
     };
@@ -182,19 +207,27 @@ export class GitHubDraftPublisher {
 
     const marker = `<!-- antibody-receipt: ${digest} -->`;
     const branch = buildBranchName(options.branchPrefix, receipt);
-    const existingPulls = await this.#control.listPulls({
-      owner,
-      repo,
-      state: 'open',
-      base: options.baseBranch,
-      per_page: 100,
-    });
-    const existing = existingPulls.find((pull) => pull.body?.includes(marker) === true);
-    if (existing !== undefined) {
-      if (existing.draft !== true) {
-        throw publicationError('Matching receipt pull request is no longer a draft', 'ANTB_PUBLISH_CONFLICT');
+    const baseFiles = new Map<string, Buffer | undefined>();
+    for (const path of receipt.patch.changedPaths) {
+      baseFiles.set(path, await this.#control.getFile({owner, repo, path, ref: baseSha}));
+    }
+    let materialized: ReadonlyMap<RepoPath, Buffer>;
+    try {
+      materialized = materializeUnifiedDiff(options.normalizedPatch, baseFiles);
+    } catch (error: unknown) {
+      throw publicationError(
+        `Approved patch cannot be materialized against verified head: ${errorMessage(error)}`,
+        'ANTB_PUBLISH_CONFLICT',
+      );
+    }
+    for (const file of files) {
+      const expected = materialized.get(file.path);
+      if (expected?.equals(Buffer.from(file.contentBase64, 'base64')) !== true) {
+        throw publicationError(
+          'Publication file contents differ from the approved patch result',
+          'ANTB_PUBLISH_CONFLICT',
+        );
       }
-      return publicationRecord(receipt, digest, branch, existing);
     }
 
     const baseCommit = await this.#control.getCommit({owner, repo, commit_sha: baseSha});
@@ -234,6 +267,27 @@ export class GitHubDraftPublisher {
       },
     });
     const commitSha = FullGitShaSchema.parse(commit.sha);
+    const existingPulls = await this.#control.listPulls({
+      owner,
+      repo,
+      state: 'open',
+      base: options.baseBranch,
+      per_page: 100,
+    });
+    const existing = existingPulls.find((pull) => pull.body?.includes(marker) === true);
+    if (existing !== undefined) {
+      if (
+        existing.draft !== true ||
+        existing.headRef !== branch ||
+        existing.headSha !== commitSha
+      ) {
+        throw publicationError(
+          'Matching receipt pull request has an unexpected draft, branch, or commit',
+          'ANTB_PUBLISH_CONFLICT',
+        );
+      }
+      return publicationRecord(receipt, digest, branch, existing);
+    }
     const branchRef = `heads/${branch}`;
     const existingBranch = await this.#getOptionalRef(owner, repo, branchRef);
     if (existingBranch === undefined) {
@@ -425,4 +479,8 @@ function publicationError(
     category: 'publication',
     retryable: false,
   });
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'unknown patch error';
 }

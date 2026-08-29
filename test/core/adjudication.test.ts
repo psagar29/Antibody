@@ -188,4 +188,16 @@ describe('causal adjudication truth table', () => {
     );
     expect(adjudicateVerification({...unstable, classifications: changed, policy: passingPolicy}).verdict).toBe('inconclusive');
   });
+
+  it('rejects semantic parent failures without an attributed target test', () => {
+    const input = buildCase();
+    const classifications = input.classifications.map((entry) =>
+      entry.outcome === 'assertion-failure'
+        ? ClassifiedAttemptSchema.parse({...entry, targetTestNames: []})
+        : entry,
+    );
+    expect(
+      adjudicateVerification({...input, classifications, policy: passingPolicy}),
+    ).toEqual({verdict: 'rejected', reasonCodes: ['PARENT_TARGET_MISSING']});
+  });
 });

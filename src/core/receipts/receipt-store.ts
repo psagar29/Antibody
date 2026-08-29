@@ -100,11 +100,7 @@ export function buildReceipt(options: BuildReceiptOptions): ReceiptV1 {
   const classifications = options.classifications.map((entry) =>
     ClassifiedAttemptSchema.parse(redactStructured(entry, redactor)),
   );
-  const artifacts = evidence.attempts.flatMap((attempt) => [
-    omitContent(attempt.stdout),
-    omitContent(attempt.stderr),
-    ...(attempt.report === undefined ? [] : [omitContent(attempt.report)]),
-  ]);
+  const artifacts = evidenceArtifactEntries(evidence).map((entry) => omitContent(entry.artifact));
   return ReceiptSchema.parse({
     schemaVersion: 'antibody.receipt/v1',
     runId: request.runId,
@@ -196,10 +192,26 @@ export class FileReceiptStore {
     const runDirectory = join(this.#baseDirectory, receipt.runId);
     await mkdir(join(runDirectory, 'artifacts'), {recursive: true, mode: 0o700});
     const digest = receiptDigest(receipt);
+    const patchBytes = Buffer.from(options.normalizedPatch, 'utf8');
+    validateArtifactBytes(receipt.patch.artifact, patchBytes, 'patch');
+    if (
+      receipt.patch.sha256 !== receipt.patch.artifact.sha256 ||
+      receipt.patch.sizeBytes !== receipt.patch.artifact.sizeBytes
+    ) {
+      throw new Error('Receipt patch metadata is internally inconsistent');
+    }
+    const persistedClassifications = options.classifications.map((entry) =>
+      ClassifiedAttemptSchema.parse(redactStructured(entry, this.#redactor)),
+    );
+    if (!canonicalBytes(persistedClassifications).equals(canonicalBytes(receipt.classifications))) {
+      throw new Error('Receipt classifications do not match persisted classifications');
+    }
     const existingReceiptPath = join(runDirectory, 'receipt.json');
     if (await pathExists(existingReceiptPath)) {
-      const existing = JSON.parse(await readFile(existingReceiptPath, 'utf8')) as unknown;
-      verifyReceipt(existing, digest);
+      const existing = await this.verify(runDirectory);
+      if (receiptDigest(existing) !== digest) {
+        throw new Error('Existing persisted receipt differs from requested receipt');
+      }
       return {directory: runDirectory, digest};
     }
 
@@ -208,7 +220,7 @@ export class FileReceiptStore {
     if (redactedPatch !== options.normalizedPatch) {
       throw new Error('Patch contains a configured or high-risk secret and cannot be persisted');
     }
-    await this.#writer.write(join(runDirectory, 'patch.diff'), Buffer.from(options.normalizedPatch, 'utf8'));
+    await this.#writer.write(join(runDirectory, 'patch.diff'), patchBytes);
     const rawEvidenceBytes = canonicalBytes(sanitizedEvidence);
     if (sha256(rawEvidenceBytes) !== receipt.evidence.rawEvidenceSha256) {
       throw new Error('Receipt raw-evidence digest does not match redacted persisted evidence');
@@ -218,12 +230,13 @@ export class FileReceiptStore {
       join(runDirectory, 'classified-evidence.json'),
       canonicalBytes(receipt.classifications),
     );
-    for (const [index, attempt] of sanitizedEvidence.attempts.entries()) {
-      await this.#persistArtifact(runDirectory, `${String(index)}-stdout`, attempt.stdout);
-      await this.#persistArtifact(runDirectory, `${String(index)}-stderr`, attempt.stderr);
-      if (attempt.report !== undefined) {
-        await this.#persistArtifact(runDirectory, `${String(index)}-report`, attempt.report);
-      }
+    const artifactEntries = evidenceArtifactEntries(sanitizedEvidence);
+    const manifest = artifactEntries.map((entry) => omitContent(entry.artifact));
+    if (!canonicalBytes(manifest).equals(canonicalBytes(receipt.evidence.artifacts))) {
+      throw new Error('Receipt artifact manifest does not match raw evidence');
+    }
+    for (const entry of artifactEntries) {
+      await this.#persistArtifact(runDirectory, entry.filename, entry.artifact);
     }
     await this.#writer.write(existingReceiptPath, canonicalReceiptBytes(receipt));
     await this.#writer.write(join(runDirectory, 'receipt.sha256'), Buffer.from(`${digest}\n`, 'utf8'));
@@ -235,16 +248,118 @@ export class FileReceiptStore {
     const expectedDigest = await readFile(join(directory, 'receipt.sha256'), 'utf8');
     const receipt = verifyReceipt(receiptValue, expectedDigest);
     const patch = await readFile(join(directory, 'patch.diff'));
-    if (sha256(patch) !== receipt.patch.sha256) throw new Error('Persisted patch digest does not match receipt');
+    validateArtifactBytes(receipt.patch.artifact, patch, 'patch');
+    if (
+      sha256(patch) !== receipt.patch.sha256 ||
+      patch.byteLength !== receipt.patch.sizeBytes
+    ) {
+      throw new Error('Persisted patch digest or size does not match receipt');
+    }
+
+    let candidate: unknown;
+    try {
+      candidate = JSON.parse(await readFile(join(directory, 'candidate.json'), 'utf8')) as unknown;
+      candidate = RecoveryCandidateSchema.parse(candidate);
+    } catch (error: unknown) {
+      throw new Error('Persisted candidate is missing or invalid', {cause: error});
+    }
+    if (!canonicalBytes(candidate).equals(canonicalBytes(receipt.candidate))) {
+      throw new Error('Persisted candidate does not match receipt candidate');
+    }
+
+    let evidence: RawVerificationEvidenceV1;
+    let rawEvidenceBytes: Buffer;
+    try {
+      rawEvidenceBytes = await readFile(join(directory, 'raw-evidence.json'));
+      evidence = RawVerificationEvidenceSchema.parse(JSON.parse(rawEvidenceBytes.toString('utf8')));
+    } catch (error: unknown) {
+      throw new Error('Persisted raw-evidence is missing or invalid', {cause: error});
+    }
+    if (sha256(rawEvidenceBytes) !== receipt.evidence.rawEvidenceSha256) {
+      throw new Error('Persisted raw-evidence digest does not match receipt');
+    }
+    if (
+      evidence.runId !== receipt.runId ||
+      evidence.candidateId !== receipt.candidate.candidateId ||
+      evidence.patchSha256 !== receipt.patch.sha256
+    ) {
+      throw new Error('Persisted raw-evidence identity does not match receipt');
+    }
+
+    let classifications: ClassifiedAttemptV1[];
+    try {
+      const value = JSON.parse(
+        await readFile(join(directory, 'classified-evidence.json'), 'utf8'),
+      ) as unknown;
+      if (!Array.isArray(value)) throw new Error('Expected an array');
+      classifications = value.map((entry) => ClassifiedAttemptSchema.parse(entry));
+    } catch (error: unknown) {
+      throw new Error('Persisted classified evidence is missing or invalid', {cause: error});
+    }
+    if (!canonicalBytes(classifications).equals(canonicalBytes(receipt.classifications))) {
+      throw new Error('Persisted classified evidence does not match receipt');
+    }
+
+    const artifactEntries = evidenceArtifactEntries(evidence);
+    const manifest = artifactEntries.map((entry) => omitContent(entry.artifact));
+    if (!canonicalBytes(manifest).equals(canonicalBytes(receipt.evidence.artifacts))) {
+      throw new Error('Persisted artifact manifest does not match receipt');
+    }
+    for (const entry of artifactEntries) {
+      if (entry.artifact.contentBase64 === undefined) {
+        throw new Error(`Persisted artifact content is missing: ${entry.filename}`);
+      }
+      let bytes: Buffer;
+      try {
+        bytes = await readFile(join(directory, 'artifacts', entry.filename));
+      } catch (error: unknown) {
+        throw new Error(`Persisted artifact is missing: ${entry.filename}`, {cause: error});
+      }
+      validateArtifactBytes(entry.artifact, bytes, 'artifact');
+      if (!bytes.equals(Buffer.from(entry.artifact.contentBase64, 'base64'))) {
+        throw new Error(`Persisted artifact differs from raw evidence: ${entry.filename}`);
+      }
+    }
     return receipt;
   }
 
-  async #persistArtifact(directory: string, stem: string, artifact: ArtifactV1): Promise<void> {
-    if (artifact.contentBase64 === undefined) return;
+  async #persistArtifact(directory: string, filename: string, artifact: ArtifactV1): Promise<void> {
+    if (artifact.contentBase64 === undefined) {
+      throw new Error(`Artifact content is required for durable proof: ${filename}`);
+    }
+    const bytes = Buffer.from(artifact.contentBase64, 'base64');
+    validateArtifactBytes(artifact, bytes, 'artifact');
     await this.#writer.write(
-      join(directory, 'artifacts', `${stem}.bin`),
-      Buffer.from(artifact.contentBase64, 'base64'),
+      join(directory, 'artifacts', filename),
+      bytes,
     );
+  }
+}
+
+interface EvidenceArtifactEntry {
+  readonly filename: string;
+  readonly artifact: ArtifactV1;
+}
+
+function evidenceArtifactEntries(
+  evidence: RawVerificationEvidenceV1,
+): EvidenceArtifactEntry[] {
+  return evidence.attempts.flatMap((attempt, index) => [
+    {filename: `${String(index)}-stdout.bin`, artifact: attempt.stdout},
+    {filename: `${String(index)}-stderr.bin`, artifact: attempt.stderr},
+    ...(attempt.report === undefined
+      ? []
+      : [{filename: `${String(index)}-report.bin`, artifact: attempt.report}]),
+  ]);
+}
+
+function validateArtifactBytes(
+  artifact: Omit<ArtifactV1, 'contentBase64'>,
+  bytes: Buffer,
+  label: 'artifact' | 'patch',
+): void {
+  if (sha256(bytes) !== artifact.sha256 || bytes.byteLength !== artifact.sizeBytes) {
+    throw new Error(`Persisted ${label} digest or size does not match receipt`);
   }
 }
 

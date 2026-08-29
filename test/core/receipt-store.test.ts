@@ -199,6 +199,27 @@ describe('FileReceiptStore', () => {
     await expect(store.verify(persisted.directory)).rejects.toThrow('patch digest');
   });
 
+  it.each([
+    ['candidate.json', '{"schemaVersion":"antibody.candidate/v1"}', 'candidate'],
+    ['raw-evidence.json', '{}', 'raw-evidence'],
+    ['classified-evidence.json', '[]', 'classified'],
+    ['artifacts/0-stdout.bin', 'tampered', 'artifact'],
+  ])('detects tampered %s', async (relativePath, replacement, expectedMessage) => {
+    const baseDirectory = await mkdtemp(join(tmpdir(), 'antibody-receipt-manifest-'));
+    temporaryDirectories.push(baseDirectory);
+    const values = fixture();
+    const store = new FileReceiptStore({baseDirectory, redactor: new Redactor([])});
+    const persisted = await store.persist({
+      receipt: values.receipt,
+      request: values.request,
+      evidence: values.evidence,
+      classifications: values.classifications,
+      normalizedPatch: values.patch,
+    });
+    await writeFile(join(persisted.directory, relativePath), replacement);
+    await expect(store.verify(persisted.directory)).rejects.toThrow(expectedMessage);
+  });
+
   it('never exposes a receipt when its atomic write fails', async () => {
     const baseDirectory = await mkdtemp(join(tmpdir(), 'antibody-receipt-failure-'));
     temporaryDirectories.push(baseDirectory);

@@ -280,7 +280,7 @@ function normalizeNoise(value: string): string {
 }
 
 function matchesTarget(name: string, targets: readonly string[]): boolean {
-  if (targets.length === 0) return true;
+  if (targets.length === 0) return false;
   const normalizedName = cleanTestName(name).toLowerCase();
   return targets.some((target) => {
     const normalizedTarget = cleanTestName(target).toLowerCase();

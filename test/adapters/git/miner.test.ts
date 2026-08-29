@@ -150,4 +150,73 @@ describe('GitHistoryMiner', () => {
     expect(first).toEqual(second);
     expect(calls).toBe(2);
   });
+
+  it('rejects merge, binary, dependency-only, oversized, and rename candidates', async () => {
+    const repositoryPath = await importFixture();
+    await git(repositoryPath, ['checkout', 'main']);
+
+    await writeFile(join(repositoryPath, 'src/blob.bin'), Buffer.from([0, 1, 2, 0, 3]));
+    await commitAll(repositoryPath, 'fix: binary behavior');
+
+    await writeFile(join(repositoryPath, 'package.json'), '{"name":"fixture"}\n');
+    await commitAll(repositoryPath, 'fix: dependency metadata');
+
+    await writeFile(
+      join(repositoryPath, 'src/large.js'),
+      `${Array.from({length: 401}, (_, index) => `export const line${String(index)} = ${String(index)};`).join('\n')}\n`,
+    );
+    await commitAll(repositoryPath, 'fix: oversized behavior');
+
+    await git(repositoryPath, ['mv', 'src/slug.js', 'src/slug-renamed.js']);
+    await commitAll(repositoryPath, 'fix: rename behavior');
+
+    await git(repositoryPath, ['switch', '-c', 'merge-source']);
+    await writeFile(
+      join(repositoryPath, 'src/slug-renamed.js'),
+      'export const slugify = (value) => value.trim().toLowerCase();\n',
+    );
+    await commitAll(repositoryPath, 'fix: branch behavior');
+    await git(repositoryPath, ['switch', 'main']);
+    await writeFile(join(repositoryPath, 'merge-note.md'), 'force a real merge\n');
+    await commitAll(repositoryPath, 'docs: prepare merge');
+    await git(repositoryPath, [
+      '-c',
+      'user.name=Antibody Fixture',
+      '-c',
+      'user.email=fixture@antibody.invalid',
+      'merge',
+      '--no-ff',
+      'merge-source',
+      '-m',
+      'fix: merge behavior',
+    ]);
+
+    const candidates = await new GitHistoryMiner().scan({
+      repositoryPath,
+      repository: {
+        slug: 'antibody/demo-history',
+        cloneUrl: 'https://github.com/antibody/demo-history.git',
+      },
+      scan: {...scan, includeProduction: ['**']},
+    });
+    const subjects = candidates.map((entry) => entry.commit.subject);
+    expect(subjects).not.toContain('fix: binary behavior');
+    expect(subjects).not.toContain('fix: dependency metadata');
+    expect(subjects).not.toContain('fix: oversized behavior');
+    expect(subjects).not.toContain('fix: rename behavior');
+    expect(subjects).not.toContain('fix: merge behavior');
+  });
 });
+
+async function commitAll(repositoryPath: string, subject: string): Promise<void> {
+  await git(repositoryPath, ['add', '--all']);
+  await git(repositoryPath, [
+    '-c',
+    'user.name=Antibody Fixture',
+    '-c',
+    'user.email=fixture@antibody.invalid',
+    'commit',
+    '-m',
+    subject,
+  ]);
+}

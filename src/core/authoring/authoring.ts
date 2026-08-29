@@ -216,15 +216,15 @@ function buildInitialPrompt(
 ): string {
   const nearbyTests = context.nearbyTests.slice(0, 3);
   const sections = [
-    section('COMMIT_MESSAGE', context.commitMessage, delimiterNonce, 32_768),
+    {name: 'COMMIT_MESSAGE', value: context.commitMessage, maxBytes: 32_768},
     ...(context.issueText === undefined
       ? []
-      : [section('ISSUE_TEXT', context.issueText, delimiterNonce, 65_536)]),
-    section('PARENT_FIX_DIFF', context.parentFixDiff, delimiterNonce, 262_144),
-    section('PARENT_SOURCES', renderFiles(context.parentSources), delimiterNonce, 196_608),
-    section('FIX_SOURCES', renderFiles(context.fixSources), delimiterNonce, 196_608),
-    section('FRAMEWORK_CONFIG', context.frameworkConfig, delimiterNonce, 65_536),
-    section('NEARBY_TESTS', renderFiles(nearbyTests), delimiterNonce, 196_608),
+      : [{name: 'ISSUE_TEXT', value: context.issueText, maxBytes: 65_536}]),
+    {name: 'PARENT_FIX_DIFF', value: context.parentFixDiff, maxBytes: 262_144},
+    {name: 'PARENT_SOURCES', value: renderFiles(context.parentSources), maxBytes: 196_608},
+    {name: 'FIX_SOURCES', value: renderFiles(context.fixSources), maxBytes: 196_608},
+    {name: 'FRAMEWORK_CONFIG', value: context.frameworkConfig, maxBytes: 65_536},
+    {name: 'NEARBY_TESTS', value: renderFiles(nearbyTests), maxBytes: 196_608},
   ];
   const instructions = [
     'You are recovering one missing regression test from an already-known historical fix.',
@@ -238,7 +238,24 @@ function buildInitialPrompt(
     'Return exactly one antibody.agent-output/v1 JSON object with candidateId, canonical base64 UTF-8 unified diff in patchBase64, an informational argv array in testCommandHint, and a one-sentence summary.',
     '',
   ].join('\n');
-  return truncateUtf8(`${instructions}${sections.join('\n')}`, maxPromptBytes);
+  const emptyFrames = sections.map((entry) => frameSection(entry.name, '', delimiterNonce));
+  const fixedPrompt = `${instructions}${emptyFrames.join('\n')}`;
+  const fixedBytes = Buffer.byteLength(fixedPrompt, 'utf8');
+  if (fixedBytes > maxPromptBytes) {
+    throw new AntibodyError('Prompt budget cannot preserve untrusted-content boundaries', {
+      code: 'ANTB_INPUT_INVALID',
+      category: 'input',
+      retryable: false,
+      details: {maxPromptBytes, requiredBytes: fixedBytes},
+    });
+  }
+  let remainingBytes = maxPromptBytes - fixedBytes;
+  const framedSections = sections.map((entry) => {
+    const bounded = truncateUtf8(entry.value, Math.min(entry.maxBytes, remainingBytes));
+    remainingBytes -= Buffer.byteLength(bounded, 'utf8');
+    return frameSection(entry.name, bounded, delimiterNonce);
+  });
+  return `${instructions}${framedSections.join('\n')}`;
 }
 
 function buildRepairPrompt(
@@ -257,9 +274,8 @@ function buildRepairPrompt(
   ].join('\n');
 }
 
-function section(name: string, value: string, nonce: string, maxBytes: number): string {
-  const bounded = truncateUtf8(value, maxBytes);
-  return `BEGIN_UNTRUSTED_${name}_${nonce}\n${bounded}\nEND_UNTRUSTED_${name}_${nonce}`;
+function frameSection(name: string, value: string, nonce: string): string {
+  return `BEGIN_UNTRUSTED_${name}_${nonce}\n${value}\nEND_UNTRUSTED_${name}_${nonce}`;
 }
 
 function renderFiles(files: readonly AuthoringContextFile[]): string {
@@ -269,7 +285,14 @@ function renderFiles(files: readonly AuthoringContextFile[]): string {
 function truncateUtf8(value: string, maxBytes: number): string {
   const bytes = Buffer.from(value, 'utf8');
   if (bytes.byteLength <= maxBytes) return value;
-  return new TextDecoder('utf-8', {fatal: false}).decode(bytes.subarray(0, maxBytes));
+  for (let end = maxBytes; end >= 0; end -= 1) {
+    try {
+      return new TextDecoder('utf-8', {fatal: true}).decode(bytes.subarray(0, end));
+    } catch {
+      // A UTF-8 code point uses at most four bytes, so this loop terminates quickly.
+    }
+  }
+  return '';
 }
 
 function sanitizeFeedback(value: string): string {

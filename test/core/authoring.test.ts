@@ -124,6 +124,25 @@ describe('CodexAuthoringModule', () => {
     expect(fake.stop).toHaveBeenCalledWith('opaque-session');
   });
 
+  it('preserves every untrusted closing delimiter under a tight prompt budget', async () => {
+    const fake = fakeAgent([envelope()]);
+    await new CodexAuthoringModule().authorCandidate(
+      candidate,
+      {...context, commitMessage: 'x'.repeat(20_000)},
+      fake.agent,
+      {...budget, maxPromptBytes: 2_000},
+      {idFactory: () => '00000000-0000-4000-8000-000000000001'},
+    );
+
+    const prompt = fake.requests[0]?.prompt ?? '';
+    expect(Buffer.byteLength(prompt, 'utf8')).toBeLessThanOrEqual(2_000);
+    expect(prompt.match(/BEGIN_UNTRUSTED_/gu)).toHaveLength(7);
+    expect(prompt.match(/END_UNTRUSTED_/gu)).toHaveLength(7);
+    expect(prompt).toContain(
+      'END_UNTRUSTED_NEARBY_TESTS_00000000-0000-4000-8000-000000000001',
+    );
+  });
+
   it('repairs malformed output through the opaque continuation and stops once', async () => {
     const fake = fakeAgent(['```json\n{}\n```', envelope()]);
     const authored = await new CodexAuthoringModule().authorCandidate(candidate, context, fake.agent, budget);

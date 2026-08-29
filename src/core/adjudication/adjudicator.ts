@@ -102,6 +102,9 @@ export function adjudicateVerification(options: {
   ) {
     return result('rejected', ['PARENT_SEMANTIC_FAILURE']);
   }
+  if (parent.some((entry) => entry.classification.targetTestNames.length === 0)) {
+    return result('rejected', ['PARENT_TARGET_MISSING']);
+  }
   const parentSignatures = new Set(parent.map((entry) => entry.classification.signature));
   if (parentSignatures.size !== 1 || parentSignatures.has(undefined)) {
     return result('inconclusive', ['PARENT_UNSTABLE_SIGNATURE']);

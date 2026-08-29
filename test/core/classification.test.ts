@@ -146,4 +146,10 @@ describe('framework classifiers', () => {
     const report = 'TAP version 13\nnot ok 1 - target\nTypeError: illegal invocation\n at /tmp/work/test/a.test.js:4:2\n1..1';
     expect(classifyAttempt(attempt({report}), 'tap', ['target']).outcome).toBe('behavioral-failure');
   });
+
+  it('never treats an empty target list as proof of a target failure', () => {
+    expect(classifyAttempt(attempt({report: tapAssertion}), 'tap', []).outcome).toBe(
+      'unrelated-test-failure',
+    );
+  });
 });

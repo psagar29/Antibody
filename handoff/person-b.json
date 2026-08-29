@@ -1,7 +1,7 @@
 {
   "schemaVersion": "antibody.handoff/v1",
   "owner": "person-b",
-  "branch": "person-b-v2",
+  "branch": "team/person-b-core",
   "baseCommit": "3c0076aa38fe10eb0cc892f9156ca9aa6ee2ee10",
   "headCommit": "c49b29f1be9bb68495af600f75e92a9e42ae3843",
   "ownedPaths": [
