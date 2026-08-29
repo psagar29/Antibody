@@ -1,9 +1,9 @@
 {
   "schemaVersion": "antibody.handoff/v1",
   "owner": "person-b",
-  "branch": "team/person-b-core",
+  "branch": "person-b-v2",
   "baseCommit": "3c0076aa38fe10eb0cc892f9156ca9aa6ee2ee10",
-  "headCommit": "4d9d404f40b7b5b8f9486d102d5d6087f53af9fc",
+  "headCommit": "c49b29f1be9bb68495af600f75e92a9e42ae3843",
   "ownedPaths": [
     "src/core/**",
     "src/adapters/git/**",
@@ -57,6 +57,14 @@
     {
       "sha": "4d9d404f40b7b5b8f9486d102d5d6087f53af9fc",
       "subject": "test: harden domain failure boundaries"
+    },
+    {
+      "sha": "5a927f30137d9924bbe0d27e17c094ced223de6d",
+      "subject": "chore: add Person B handoff manifest"
+    },
+    {
+      "sha": "c49b29f1be9bb68495af600f75e92a9e42ae3843",
+      "subject": "merge: reconcile Person B implementations"
     }
   ],
   "contractsConsumed": [
@@ -72,10 +80,12 @@
   ],
   "commandsRun": [
     "git fetch origin --tags && git switch team/person-b-core && git pull --ff-only origin team/person-b-core",
+    "git merge --no-commit --no-ff -X theirs origin/team/person-b-core",
+    "git branch -m person-b-v2 && git branch --unset-upstream",
     "pnpm install --frozen-lockfile",
     "pnpm check",
     "node --experimental-strip-types scripts/build-demo-fixture.ts",
-    "pnpm vitest run test/core test/adapters/git test/adapters/github",
+    "pnpm exec vitest run test/adapters/git/miner.test.ts test/core/classification.test.ts",
     "pnpm typecheck",
     "pnpm lint",
     "pnpm build",
@@ -86,7 +96,12 @@
     {
       "name": "Person B focused suite",
       "passed": true,
-      "details": "10 files and 73 tests passed: fixture, miner/ranker, patch policy, authoring, classification, adjudication, receipts, publisher, and end-to-end fake-port recovery."
+      "details": "2 focused files and 21 tests passed, including unconditional rejection of test-touching mined commits and cross-platform failure-signature normalization."
+    },
+    {
+      "name": "Full repository check",
+      "passed": true,
+      "details": "pnpm check passed schema generation verification, ESLint, strict TypeScript, 11 test files and 91 tests, and the production ESM/declaration build."
     },
     {
       "name": "TypeScript strict typecheck",
@@ -133,6 +148,7 @@
     "No live GitHub write was attempted; draft, label-permission, stale-head, conflict, dedupe, and partial-failure behavior is verified with an injected typed fake only.",
     "No live Runloop or Reflex call was made on this branch; Person B consumes only the frozen ports.",
     "The Person B prompt references two README-linked research reports, but this baseline contains neither report files nor README links.",
+    "The reconciliation merge preserves both independent Person B histories, while the final tree uses the previously published implementation as the canonical module layout plus the stricter mining and normalization tests.",
     "headCommit records the final implementation commit immediately before this manifest-only commit, avoiding an impossible self-referential Git SHA."
   ],
   "integrationInstructions": [
