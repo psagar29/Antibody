@@ -144,6 +144,7 @@ describe('RecoveryCoordinator', () => {
           cleanup: [
             {devboxId: 'parent-box', requested: true, completed: true},
             {devboxId: 'fix-box', requested: true, completed: true},
+            {devboxId: 'head-box', requested: true, completed: true},
           ],
         }));
       },

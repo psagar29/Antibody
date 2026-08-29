@@ -140,7 +140,8 @@ export class GitHistoryMiner {
             !isSafePath(file.path) ||
             !safeModePattern.test(file.oldMode) ||
             !safeModePattern.test(file.newMode) ||
-            excludedMatcher.ignores(file.path),
+            excludedMatcher.ignores(file.path) ||
+            isHardExcludedPath(file.path),
         )
       ) {
         continue;
@@ -157,7 +158,22 @@ export class GitHistoryMiner {
       const changedProductionPaths = changedFiles
         .filter((file) => productionMatcher.ignores(file.path))
         .map((file) => file.path);
-      if (changedProductionPaths.length === 0) continue;
+      if (
+        changedProductionPaths.length === 0 ||
+        changedProductionPaths.every((path) => isNonBehavioralPath(path))
+      ) {
+        continue;
+      }
+
+      const headDifference = await this.#gitBuffer(options, [
+        'diff',
+        '--no-ext-diff',
+        '--no-color',
+        header.sha,
+        headSha,
+        '--',
+        ...changedProductionPaths,
+      ]);
 
       const enrichment = await this.#getEnrichment(header.sha);
       const signals = buildSignals({
@@ -165,6 +181,7 @@ export class GitHistoryMiner {
         changedLines,
         productionFileCount: changedProductionPaths.length,
         diff: diff.toString('utf8'),
+        currentHeadContainsFix: headDifference.byteLength === 0,
         ...(enrichment === undefined ? {} : {enrichment}),
       });
       const score = Math.max(
@@ -331,6 +348,7 @@ function buildSignals(options: {
   readonly changedLines: number;
   readonly productionFileCount: number;
   readonly diff: string;
+  readonly currentHeadContainsFix: boolean;
   readonly enrichment?: CandidateEnrichment;
 }): {code: string; weight: number; evidence: string}[] {
   const signals: {code: string; weight: number; evidence: string}[] = [];
@@ -356,8 +374,30 @@ function buildSignals(options: {
   if (issueReferencePattern.test(options.subject)) {
     signals.push({code: 'ISSUE_REFERENCE', weight: 5, evidence: 'Commit subject references an issue'});
   }
-  signals.push({code: 'PRESENT_AT_HEAD', weight: 5, evidence: 'Commit is reachable from captured HEAD'});
+  if (options.currentHeadContainsFix) {
+    signals.push({
+      code: 'PRESENT_AT_HEAD',
+      weight: 5,
+      evidence: 'Changed production paths are byte-identical at captured HEAD',
+    });
+  }
   return signals;
+}
+
+function isHardExcludedPath(path: string): boolean {
+  return (
+    /^(?:vendor|node_modules|dist|build|generated)\//u.test(path) ||
+    /\.(?:min\.js|map|generated\.[A-Za-z0-9]+)$/u.test(path)
+  );
+}
+
+function isNonBehavioralPath(path: string): boolean {
+  return (
+    /^(?:docs?|\.github)\//u.test(path) ||
+    /^(?:README|CHANGELOG|LICENSE|NOTICE)(?:\.|$)/iu.test(path) ||
+    /^(?:package(?:-lock)?\.json|pnpm-lock\.yaml|yarn\.lock|.*\.config\.[A-Za-z0-9]+)$/u.test(path) ||
+    /\.(?:md|mdx|rst|txt|lock|ya?ml|toml)$/iu.test(path)
+  );
 }
 
 function sha256(value: string | Buffer): `sha256:${string}` {

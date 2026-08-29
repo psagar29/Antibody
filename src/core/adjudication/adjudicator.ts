@@ -53,11 +53,26 @@ export function adjudicateVerification(options: {
   if (!evidence.environmentEquivalence.equivalent) {
     return result('inconclusive', ['ENVIRONMENT_MISMATCH']);
   }
-  if (evidence.cleanup.some((entry) => !entry.requested || !entry.completed)) {
+  const devboxIds = new Set(evidence.attempts.map((attempt) => attempt.provider.devboxId));
+  const completedCleanup = new Set(
+    evidence.cleanup
+      .filter((entry) => entry.requested && entry.completed)
+      .map((entry) => entry.devboxId),
+  );
+  if (
+    devboxIds.size === 0 ||
+    evidence.cleanup.some((entry) => !entry.requested || !entry.completed) ||
+    [...devboxIds].some((devboxId) => !completedCleanup.has(devboxId))
+  ) {
     return result('inconclusive', ['CLEANUP_INCOMPLETE']);
   }
   if (classifications.length !== evidence.attempts.length) {
     return result('inconclusive', ['CLASSIFICATION_MISSING']);
+  }
+
+  const setup = select(evidence.attempts, byAttempt, ['parent', 'fix', 'head'], 'setup');
+  if (setup.some((entry) => entry.classification.outcome !== 'pass')) {
+    return result('inconclusive', ['SETUP_NOT_GREEN']);
   }
 
   const baseline = select(evidence.attempts, byAttempt, ['parent', 'fix'], 'baseline');

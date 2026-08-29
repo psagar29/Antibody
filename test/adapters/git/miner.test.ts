@@ -77,6 +77,21 @@ describe('GitHistoryMiner', () => {
     expect(candidates[0]?.candidateId).toBe(expected.candidateId);
     expect(candidates[0]?.commit.changedTestPaths).toEqual([]);
     expect(candidates[0]?.signals.map((signal) => signal.code)).toContain('BUG_WORD');
+    expect(candidates[0]?.signals.map((signal) => signal.code)).not.toContain('PRESENT_AT_HEAD');
+    expect(candidates[1]?.signals.map((signal) => signal.code)).toContain('PRESENT_AT_HEAD');
+  });
+
+  it('hard-rejects documentation-only history even under an overly broad production glob', async () => {
+    const repositoryPath = await importFixture();
+    const candidates = await new GitHistoryMiner().scan({
+      repositoryPath,
+      repository: {
+        slug: 'antibody/demo-history',
+        cloneUrl: 'https://github.com/antibody/demo-history.git',
+      },
+      scan: {...scan, includeProduction: ['**']},
+    });
+    expect(candidates.map((entry) => entry.commit.subject)).not.toContain('docs: explain slug output');
   });
 
   it('keeps optional enrichment cached and non-authoritative on failure', async () => {

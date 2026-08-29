@@ -112,6 +112,7 @@ function buildCase(overrides: Record<string, OutcomeKindV1> = {}, signatureOverr
     cleanup: [
       {devboxId: 'parent-box', requested: true, completed: true},
       {devboxId: 'fix-box', requested: true, completed: true},
+      {devboxId: 'head-box', requested: true, completed: true},
     ],
   });
   return {request, evidence, classifications};
@@ -149,6 +150,13 @@ describe('causal adjudication truth table', () => {
       adjudicateVerification({
         ...input,
         evidence: {...input.evidence, environmentEquivalence: {equivalent: false, comparedFields: [], mismatchFields: ['snapshot']}},
+        policy: passingPolicy,
+      }).verdict,
+    ).toBe('inconclusive');
+    expect(
+      adjudicateVerification({
+        ...input,
+        evidence: {...input.evidence, cleanup: []},
         policy: passingPolicy,
       }).verdict,
     ).toBe('inconclusive');

@@ -1,6 +1,6 @@
 import {createHash, randomUUID} from 'node:crypto';
 import {constants as fileConstants} from 'node:fs';
-import {access, mkdir, open, readFile, rename} from 'node:fs/promises';
+import {access, mkdir, open, readFile, rename, unlink} from 'node:fs/promises';
 import {basename, dirname, join} from 'node:path';
 
 import {canonicalize} from 'json-canonicalize';
@@ -16,6 +16,7 @@ import type {
 import {
   ClassifiedAttemptSchema,
   RawVerificationEvidenceSchema,
+  RecoveryCandidateSchema,
   ReceiptSchema,
   Sha256Schema,
   VerificationRequestSchema,
@@ -34,11 +35,17 @@ export class FileAtomicWriter implements AtomicWriter {
     await mkdir(directory, {recursive: true, mode: 0o700});
     const temporaryPath = join(directory, `.${basename(path)}.${randomUUID()}.tmp`);
     const handle = await open(temporaryPath, 'wx', 0o600);
+    let handleClosed = false;
     try {
       await handle.writeFile(bytes);
       await handle.sync();
-    } finally {
+    } catch (error: unknown) {
       await handle.close();
+      handleClosed = true;
+      await unlink(temporaryPath).catch(() => undefined);
+      throw error;
+    } finally {
+      if (!handleClosed) await handle.close();
     }
     await rename(temporaryPath, path);
     try {
@@ -84,11 +91,15 @@ export interface BuildReceiptOptions {
 
 export function buildReceipt(options: BuildReceiptOptions): ReceiptV1 {
   const request = VerificationRequestSchema.parse(options.request);
+  const redactor = options.redactor ?? new Redactor([]);
   const evidence = sanitizeEvidence(
     options.evidence,
-    options.redactor ?? new Redactor([]),
+    redactor,
   );
-  const classifications = options.classifications.map((entry) => ClassifiedAttemptSchema.parse(entry));
+  const candidate = RecoveryCandidateSchema.parse(redactStructured(request.candidate, redactor));
+  const classifications = options.classifications.map((entry) =>
+    ClassifiedAttemptSchema.parse(redactStructured(entry, redactor)),
+  );
   const artifacts = evidence.attempts.flatMap((attempt) => [
     omitContent(attempt.stdout),
     omitContent(attempt.stderr),
@@ -97,7 +108,7 @@ export function buildReceipt(options: BuildReceiptOptions): ReceiptV1 {
   return ReceiptSchema.parse({
     schemaVersion: 'antibody.receipt/v1',
     runId: request.runId,
-    candidate: request.candidate,
+    candidate,
     patch: {
       sha256: request.patch.sha256,
       sizeBytes: options.policy.sizeBytes,
@@ -192,7 +203,7 @@ export class FileReceiptStore {
       return {directory: runDirectory, digest};
     }
 
-    await this.#writer.write(join(runDirectory, 'candidate.json'), canonicalBytes(request.candidate));
+    await this.#writer.write(join(runDirectory, 'candidate.json'), canonicalBytes(receipt.candidate));
     const redactedPatch = this.#redactor.redact(options.normalizedPatch);
     if (redactedPatch !== options.normalizedPatch) {
       throw new Error('Patch contains a configured or high-risk secret and cannot be persisted');
@@ -205,7 +216,7 @@ export class FileReceiptStore {
     await this.#writer.write(join(runDirectory, 'raw-evidence.json'), rawEvidenceBytes);
     await this.#writer.write(
       join(runDirectory, 'classified-evidence.json'),
-      canonicalBytes(options.classifications.map((entry) => ClassifiedAttemptSchema.parse(entry))),
+      canonicalBytes(receipt.classifications),
     );
     for (const [index, attempt] of sanitizedEvidence.attempts.entries()) {
       await this.#persistArtifact(runDirectory, `${String(index)}-stdout`, attempt.stdout);
@@ -239,7 +250,7 @@ export class FileReceiptStore {
 
 function sanitizeEvidence(evidenceInput: RawVerificationEvidenceV1, redactor: Redactor): RawVerificationEvidenceV1 {
   const evidence = RawVerificationEvidenceSchema.parse(evidenceInput);
-  return RawVerificationEvidenceSchema.parse({
+  return RawVerificationEvidenceSchema.parse(redactStructured({
     ...evidence,
     attempts: evidence.attempts.map((attempt) => ({
       ...attempt,
@@ -247,7 +258,7 @@ function sanitizeEvidence(evidenceInput: RawVerificationEvidenceV1, redactor: Re
       stderr: sanitizeArtifact(attempt.stderr, redactor),
       ...(attempt.report === undefined ? {} : {report: sanitizeArtifact(attempt.report, redactor)}),
     })),
-  });
+  }, redactor));
 }
 
 function sanitizeArtifact(artifact: ArtifactV1, redactor: Redactor): ArtifactV1 {
@@ -279,6 +290,17 @@ function omitContent(artifact: ArtifactV1): Omit<ArtifactV1, 'contentBase64'> {
 
 function canonicalBytes(value: unknown): Buffer {
   return Buffer.from(canonicalize(value), 'utf8');
+}
+
+function redactStructured(value: unknown, redactor: Redactor): unknown {
+  if (typeof value === 'string') return redactor.redact(value);
+  if (Array.isArray(value)) return value.map((entry) => redactStructured(entry, redactor));
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, redactStructured(entry, redactor)]),
+    );
+  }
+  return value;
 }
 
 function sha256(value: string | Buffer): string {

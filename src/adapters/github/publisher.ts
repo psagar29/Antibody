@@ -11,7 +11,7 @@ import {
   RepoPathSchema,
   Sha256Schema,
 } from '../../contracts/index.js';
-import {receiptDigest} from '../../core/receipts/receipt-store.js';
+import {Redactor, receiptDigest} from '../../core/receipts/receipt-store.js';
 
 type GetRefParameters = RestEndpointMethodTypes['git']['getRef']['parameters'];
 type GetCommitParameters = RestEndpointMethodTypes['git']['getCommit']['parameters'];
@@ -98,8 +98,8 @@ class OctokitGitHubControl implements GitHubControl {
   }
 
   async listPulls(parameters: ListPullsParameters): Promise<readonly PullView[]> {
-    const response = await this.#octokit.rest.pulls.list(parameters);
-    return response.data.map((pull) => ({
+    const pulls = await this.#octokit.paginate(this.#octokit.rest.pulls.list, parameters);
+    return pulls.map((pull) => ({
       number: pull.number,
       htmlUrl: pull.html_url,
       body: pull.body,
@@ -327,7 +327,10 @@ function buildBranchName(prefix: string, receipt: ReceiptV1): string {
 }
 
 function buildTitle(receipt: ReceiptV1): string {
-  const subject = receipt.candidate.commit.subject.replaceAll(/[\r\n<>`]/gu, ' ').trim();
+  const subject = new Redactor([])
+    .redact(receipt.candidate.commit.subject)
+    .replaceAll(/[\r\n<>`]/gu, ' ')
+    .trim();
   return `[Antibody] ${subject}`.slice(0, 200);
 }
 
