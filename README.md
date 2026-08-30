@@ -9,7 +9,7 @@
 [![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](tsconfig.json)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-[30-second demo](#30-second-demo) · [How Codex works](#how-antibody-uses-codex) · [Sponsor architecture](#runloop--reflex-the-sponsor-stack) · [Real proof](#proof-case-caught-the-forgotten-regression) · [Live setup](#run-it-on-a-real-repository)
+[Try it yourself](#try-it-yourself) · [How Codex works](#how-antibody-uses-codex) · [Sponsor architecture](#runloop--reflex-the-sponsor-stack) · [Real proof](#proof-case-caught-the-forgotten-regression) · [Live setup](#run-it-on-a-real-repository)
 
 </div>
 
@@ -23,7 +23,7 @@ No “it passes now, ship it.” No “nonzero exit code means bug reproduced.�
 
 <sub>Actual Antibody dashboard rendering from the deterministic offline fixture. Local, read-only, and backed by digest-verified receipt artifacts.</sub>
 
-## 30-second demo
+## Try it yourself
 
 ```bash
 git clone https://github.com/psagar29/Antibody.git
