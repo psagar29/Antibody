@@ -19,9 +19,9 @@ Antibody turns Codex into a regression-test recovery agent. It mines Git history
 
 No “it passes now, ship it.” No “nonzero exit code means bug reproduced.” No autonomous merge. Evidence first; human-approved draft PR last.
 
-![Antibody Proof Ledger showing a verified causal evidence matrix](https://raw.githubusercontent.com/psagar29/Antibody/main/docs/assets/antibody-dashboard.png)
+![Silent live Antibody walkthrough: run pnpm demo, open the fresh receipt, and inspect the causal evidence matrix](docs/assets/antibody-demo.gif)
 
-<sub>Actual Antibody dashboard rendering from the deterministic offline fixture. Local, read-only, and backed by digest-verified receipt artifacts.</sub>
+<sub>Silent real-time capture from `pnpm demo` at commit `19357b6`: the terminal creates a fresh verified receipt, then the same run is opened and inspected in the local proof ledger. The fixture is simulated; the command output, digest, dashboard, clicks, and evidence matrix come from one actual run.</sub>
 
 ## Try it yourself
 
