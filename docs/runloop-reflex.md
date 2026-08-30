@@ -1,6 +1,6 @@
 # Runloop and Reflex adapter runbook
 
-This runbook covers the Person A infrastructure seam only. The Runloop adapter returns
+This runbook covers the infrastructure seam only. The Runloop adapter returns
 `RawVerificationEvidenceV1`; the Reflex adapter returns bounded raw `finalText` and public
 provenance. Verdicts, patch parsing, repair policy, prompts, receipts, and publication remain
 outside these adapters.
@@ -94,7 +94,7 @@ fabricates.
    Antibody's controller and GitHub publisher remain outside the agent.
 3. Run a harmless validation task. After the session behaves correctly, save that successful setup
    as a Persona, or create the equivalent Persona in the Persona form. The Persona owns the agent
-   harness, model, Blueprint, and tools; Person B supplies the per-invocation prompt.
+   harness, model, Blueprint, and tools; Antibody supplies the per-invocation prompt.
 4. Use the public Persona list operation to retrieve its opaque id and store only that id as
    `ANTIBODY_REFLEX_PERSONA_ID`.
 5. In **Security → API keys**, mint a personal API key for the adapter. Store it as
@@ -103,7 +103,7 @@ fabricates.
 
 `createReflexAgentSessionAdapter` configures the public client with the base URL, API key, and
 organization. A new invocation calls `launchAgentFromPersona` (`POST
-/api/agent-personas/{id}/launch`) with `promptStrategy: "replace"`, the exact Person B prompt,
+/api/agent-personas/{id}/launch`) with `promptStrategy: "replace"`, the exact Antibody prompt,
 `repoSlug`, and the full checkout SHA as `repoBranch`. A continuation first records the current
 stream boundary, then calls `sendAgentMessage` on the existing opaque agent id.
 
@@ -141,7 +141,7 @@ provider budget.
 3. Revoke or discard disposable credentials and inspect persisted artifacts for redaction before
    retaining them.
 
-No live Runloop or Reflex call was performed during Person A implementation because credentials and
+No live Runloop or Reflex call was performed during implementation because credentials and
 billable-resource authorization were not available in the development session. The SDK/OpenAPI
 shapes and all lifecycle behavior were verified with generated types and secret-free fakes; live
 provisioning, mount authentication, vendor billing, WebSocket connectivity, and UI state remain to
@@ -149,10 +149,10 @@ be verified by the integration owner.
 
 ## Integration boundary
 
-Person C should instantiate these adapters in the composition root and pass them through the frozen
-ports. The critical proof controller must remain outside Reflex: Reflex authors raw final text;
-Person B parses and validates the patch; Runloop independently executes the paired proof; Person B
-classifies evidence and publishes through the GitHub adapter. A Reflex session never needs Runloop
+The composition root instantiates these adapters and passes them through the frozen ports. The
+critical proof controller must remain outside Reflex: Reflex authors raw final text; Antibody parses
+and validates the patch; Runloop independently executes the paired proof; Antibody classifies
+evidence and publishes through the GitHub adapter. A Reflex session never needs Runloop
 credentials for this critical path.
 
 Official references:

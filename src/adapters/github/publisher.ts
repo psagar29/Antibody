@@ -160,7 +160,8 @@ export interface PublishOptions {
   readonly receipt: ReceiptV1;
   readonly approval: string;
   readonly normalizedPatch: string;
-  readonly files: readonly PublicationFile[];
+  /** Optional defense-in-depth assertion; omitted files are materialized from the approved patch. */
+  readonly files?: readonly PublicationFile[];
   readonly baseBranch: string;
   readonly branchPrefix: string;
   readonly labels: readonly string[];
@@ -185,7 +186,9 @@ export class GitHubDraftPublisher {
     if (sha256(options.normalizedPatch) !== receipt.patch.sha256) {
       throw publicationError('Patch digest does not match the approved receipt', 'ANTB_PUBLISH_CONFLICT');
     }
-    const files = validatePublicationFiles(options.files, receipt.patch.changedPaths);
+    const providedFiles = options.files === undefined
+      ? undefined
+      : validatePublicationFiles(options.files, receipt.patch.changedPaths);
     const [owner, repo] = receipt.candidate.repository.slug.split('/');
     if (owner === undefined || repo === undefined) {
       throw publicationError('Repository slug is invalid', 'ANTB_PUBLISH_CONFLICT');
@@ -220,6 +223,7 @@ export class GitHubDraftPublisher {
         'ANTB_PUBLISH_CONFLICT',
       );
     }
+    const files = providedFiles ?? publicationFilesFromMaterialized(materialized, receipt.patch.changedPaths);
     for (const file of files) {
       const expected = materialized.get(file.path);
       if (expected?.equals(Buffer.from(file.contentBase64, 'base64')) !== true) {
@@ -336,6 +340,27 @@ export class GitHubDraftPublisher {
       throw error;
     }
   }
+}
+
+function publicationFilesFromMaterialized(
+  materialized: ReadonlyMap<RepoPath, Buffer>,
+  expectedPaths: readonly RepoPath[],
+): PublicationFile[] {
+  return expectedPaths.map((path) => {
+    const bytes = materialized.get(path);
+    if (bytes === undefined) {
+      throw publicationError('Approved patch did not materialize every receipt path', 'ANTB_PUBLISH_CONFLICT');
+    }
+    if (bytes.byteLength > 1_048_576) {
+      throw publicationError('Publication file exceeds the byte limit', 'ANTB_PUBLISH_CONFLICT');
+    }
+    try {
+      new TextDecoder('utf-8', {fatal: true}).decode(bytes);
+    } catch {
+      throw publicationError('Publication file is not UTF-8 text', 'ANTB_PUBLISH_CONFLICT');
+    }
+    return {path, contentBase64: bytes.toString('base64')};
+  });
 }
 
 export function createGitHubDraftPublisher(octokit: Octokit): GitHubDraftPublisher {

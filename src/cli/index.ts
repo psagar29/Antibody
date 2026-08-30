@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-import {Command} from 'commander';
+import {runCli} from './run.js';
 
-const program = new Command()
-  .name('antibody')
-  .description('Recover and causally verify regression tests omitted from merged bug fixes.')
-  .version('0.0.0');
-
-program.parse();
+process.exitCode = await runCli(process.argv.slice(2));

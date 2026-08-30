@@ -52,7 +52,7 @@ export interface RecoverCandidateOptions {
   readonly testGlobs: readonly string[];
   readonly allowedSupportGlobs: readonly string[];
   readonly verificationPlan: VerificationPlanV1;
-  readonly targetTestNames: readonly string[];
+  readonly targetTestNames?: readonly string[];
   readonly signal?: AbortSignal;
   readonly runIdFactory?: () => string;
   readonly now?: () => string;
@@ -187,6 +187,18 @@ export class RecoveryCoordinator {
       report: options.verificationPlan.report,
       repetitions: options.verificationPlan.repetitions,
     });
+    const targetTestNames = options.targetTestNames?.length === 0 || options.targetTestNames === undefined
+      ? inferTargetTestNames(policy.normalizedPatch)
+      : [...options.targetTestNames];
+    if (targetTestNames.length === 0) {
+      return {
+        result: {
+          accepted: false,
+          category: 'candidate-policy',
+          feedback: 'Generated patch must contain an identifiable named test',
+        },
+      };
+    }
     const evidence = await this.#verifier.execute(
       request,
       options.signal === undefined ? undefined : {signal: options.signal},
@@ -194,7 +206,7 @@ export class RecoveryCoordinator {
     const classifications = classifyEvidenceAttempts(
       evidence.attempts,
       request.report.format,
-      options.targetTestNames,
+      targetTestNames,
     );
     const adjudication = adjudicateVerification({request, evidence, classifications, policy});
     if (adjudication.verdict === 'verified') {
@@ -205,6 +217,40 @@ export class RecoveryCoordinator {
     }
     return {result: reviewFromAdjudication(adjudication, classifications)};
   }
+}
+
+/** Extracts reporter-visible test identifiers from added lines in a unified diff. */
+export function inferTargetTestNames(normalizedPatch: string): string[] {
+  const names = new Set<string>();
+  let pendingJunitAnnotation = false;
+  for (const line of normalizedPatch.split('\n')) {
+    if (!line.startsWith('+') || line.startsWith('+++')) continue;
+    const added = line.slice(1).trim();
+    if (/^@(?:org\.junit\.)?(?:jupiter\.api\.)?Test\b/u.test(added)) {
+      pendingJunitAnnotation = true;
+      continue;
+    }
+    const quoted = /^(?:test|it)(?:\.(?:only|skip|todo|concurrent|each)(?:\([^)]*\))?)*\s*\(\s*(['"`])([^'"`]+)\1/u.exec(added)
+      ?? /^it\s+(['"])([^'"]+)\1/u.exec(added);
+    if (quoted?.[2] !== undefined && !quoted[2].includes('${')) names.add(quoted[2].trim());
+
+    const python = /^(?:async\s+)?def\s+(test_[A-Za-z0-9_]+)\s*\(/u.exec(added);
+    if (python?.[1] !== undefined) names.add(python[1]);
+
+    const go = /^func\s+(Test[A-Za-z0-9_]+)\s*\(/u.exec(added);
+    if (go?.[1] !== undefined) names.add(go[1]);
+
+    if (pendingJunitAnnotation) {
+      const junit = /^(?:(?:public|protected|private|static|final|synchronized)\s+)*void\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/u.exec(added);
+      if (junit?.[1] !== undefined) {
+        names.add(junit[1]);
+        pendingJunitAnnotation = false;
+      } else if (added !== '' && !added.startsWith('@')) {
+        pendingJunitAnnotation = false;
+      }
+    }
+  }
+  return [...names].filter((name) => name.length > 0 && name.length <= 1_024);
 }
 
 function reviewFromAdjudication(

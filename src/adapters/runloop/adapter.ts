@@ -311,11 +311,23 @@ function internalCommand(argv: readonly [string, ...string[]], timeoutMs = 30_00
   return CommandSpecSchema.parse({argv, cwd: '.', env: {}, timeoutMs});
 }
 
-function withTargetPaths(command: CommandSpecV1, paths: readonly string[]): CommandSpecV1 {
+export function withTargetPaths(command: CommandSpecV1, paths: readonly string[]): CommandSpecV1 {
+  if (!acceptsTestFileArguments(command.argv)) return command;
   return CommandSpecSchema.parse({
     ...command,
     argv: [...command.argv, ...paths],
   });
+}
+
+function acceptsTestFileArguments(argv: CommandSpecV1['argv']): boolean {
+  const executable = argv[0].split('/').at(-1)?.toLowerCase();
+  if (executable === 'pytest' || executable === 'py.test') return true;
+  if (executable === 'node' && argv.includes('--test')) return true;
+  if (executable === 'ava' || executable === 'vitest' || executable === 'jest') return true;
+  if (executable === 'npx' || executable === 'pnpm' || executable === 'npm') {
+    return argv.some((value) => value === 'ava' || value === 'vitest' || value === 'jest');
+  }
+  return false;
 }
 
 function isoTime(milliseconds: number): string {

@@ -81,7 +81,17 @@ export function classifyAttempt(
     );
   }
   if (parsed.failingTests.length === 0 && attempt.exitCode === 0) {
-    return classification(attempt, 'pass', parsed.passingTests, 'All reported tests passed', 'high');
+    const targetPasses = parsed.passingTests.filter((name) => matchesTarget(name, targetTestNames));
+    if (targetPasses.length === 0) {
+      return classification(
+        attempt,
+        'collection-failure',
+        [],
+        'Reporter did not confirm collection of the generated target test',
+        'high',
+      );
+    }
+    return classification(attempt, 'pass', targetPasses, 'Generated target tests passed', 'high');
   }
   if (parsed.failingTests.length === 0) {
     return classification(

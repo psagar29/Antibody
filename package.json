@@ -1,23 +1,44 @@
 {
   "name": "@psagar29/antibody",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Recover and causally verify regression tests omitted from merged bug fixes.",
   "license": "Apache-2.0",
   "type": "module",
-  "private": true,
+  "author": "Pranav Sagar",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/psagar29/Antibody.git"
+  },
+  "homepage": "https://github.com/psagar29/Antibody#readme",
+  "bugs": {
+    "url": "https://github.com/psagar29/Antibody/issues"
+  },
+  "keywords": [
+    "regression-testing",
+    "git",
+    "testing",
+    "codex",
+    "runloop",
+    "reflex"
+  ],
   "engines": {
     "node": ">=22"
   },
   "packageManager": "pnpm@11.24.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "schemas",
+    "fixtures/demo-history",
     "LICENSE",
     "NOTICE",
-    "README.md"
+    "README.md",
+    "SECURITY.md",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "bin": {
-    "antibody": "dist/cli.js"
+    "antibody": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -25,8 +46,8 @@
       "import": "./dist/index.js"
     },
     "./contracts": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/contracts.d.ts",
+      "import": "./dist/contracts.js"
     }
   },
   "scripts": {
@@ -37,17 +58,21 @@
     "schema:generate": "pnpm build && node scripts/generate-schemas.mjs",
     "schema:check": "pnpm build && node scripts/generate-schemas.mjs --check",
     "check": "pnpm schema:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
-    "antibody": "node dist/cli.js"
+    "antibody": "node dist/cli.js",
+    "package:smoke": "node scripts/package-smoke.mjs",
+    "prepack": "pnpm schema:check"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "dependencies": {
     "@octokit/rest": "22.0.1",
     "@runloop/api-client": "1.31.0",
     "@runloop/reflex-client": "0.20.0",
     "commander": "15.0.0",
-    "fast-glob": "3.3.3",
     "ignore": "7.0.6",
     "json-canonicalize": "3.0.0",
-    "picocolors": "1.1.1",
     "yaml": "2.9.0",
     "zod": "4.5.4"
   },

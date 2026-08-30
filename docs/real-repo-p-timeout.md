@@ -71,4 +71,4 @@ Suggested targeted argv (the final command must match the prewarmed Snapshot and
 ["npx", "ava", "test.js", "--match=calls custom timers without a receiver"]
 ```
 
-No live Runloop or Reflex credentials were used in this Person B rehearsal. Person C must run the budget-bounded live proof with Person A’s adapter and label recorded versus live evidence honestly.
+No live Runloop or Reflex credentials were used in this rehearsal. A release operator must run the budget-bounded live proof with the production adapters and label recorded versus live evidence honestly.

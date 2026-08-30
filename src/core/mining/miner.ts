@@ -154,8 +154,8 @@ export class GitHistoryMiner {
       const changedTestPaths = changedFiles
         .filter((file) => testMatcher.ignores(file.path))
         .map((file) => file.path);
-      // The Person B mining lane only admits production-only fixes. Keep this
-      // invariant hard even if a caller supplies a permissive legacy flag.
+      // Mining admits production-only fixes. Keep this invariant hard even if
+      // a caller supplies a permissive legacy flag.
       if (changedTestPaths.length > 0) continue;
       const changedProductionPaths = changedFiles
         .filter((file) => productionMatcher.ignores(file.path))

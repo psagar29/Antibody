@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions: {}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm and Node.js 22
+        uses: pnpm/setup@ce3b1e5f04cd26dbb4614172464b544b5633cc92 # v2.1.0
+        with:
+          version: 11.24.0
+          runtime: node@22
+          install: false
+          cache: false
+
+      - name: Require matching package and tag versions
+        run: |
+          package_version="$(node -p "require('./package.json').version")"
+          test "${GITHUB_REF_NAME}" = "v${package_version}"
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check and smoke-test package
+        run: |
+          pnpm check
+          pnpm package:smoke
+
+      - name: Build release artifact
+        run: |
+          mkdir release
+          npm pack --pack-destination release
+          tarball="$(find release -maxdepth 1 -type f -name '*.tgz' -print -quit)"
+          test -n "${tarball}"
+          sha256sum "${tarball}" > "${tarball}.sha256"
+
+      - name: Upload verified release artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: npm-package
+          path: release/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: npm
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+    steps:
+      - name: Download verified release artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-package
+          path: release
+
+      - name: Verify artifact checksum
+        run: sha256sum --check release/*.sha256
+
+      - name: Set up Node.js 22 for npm trusted publishing
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Install trusted-publishing-capable npm
+        run: npm install --global npm@11.15.0
+
+      - name: Publish package with OIDC provenance
+        run: npm publish release/*.tgz --access public
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" release/*.tgz release/*.sha256 --verify-tag --generate-notes --title "Antibody ${GITHUB_REF_NAME}"

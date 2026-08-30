@@ -1,0 +1,67 @@
+name: Bug report
+description: Report reproducible incorrect behavior without sensitive data.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: For suspected vulnerabilities, use private security reporting. Never paste secrets or private repository data.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched for duplicates.
+          required: true
+        - label: This contains no credentials, private data, or vulnerability details.
+          required: true
+        - label: I distinguished simulated/offline evidence from live evidence.
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Include `antibody --version` and source commit when relevant.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, architecture, Node.js, package manager, and test framework.
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options: [Simulated offline fixture, Local non-live command, Live recovery, GitHub publication, Package or CLI, Dashboard or viewer]
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Exact sanitized commands, inputs, and sequence; prefer a public minimal repository.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include stable error/reason codes and exit status.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Minimal logs, receipt verification, tests, or screenshots with tokens/private content removed.
+    validations:
+      required: true

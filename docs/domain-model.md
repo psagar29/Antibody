@@ -1,6 +1,6 @@
 # Antibody domain model
 
-Person B owns the decisions between immutable Git history and the two frozen transport ports. Runloop returns raw observations; Reflex returns raw bounded agent text. Neither provider decides whether a recovered test proves a regression.
+Antibody's core owns the decisions between immutable Git history and the two frozen transport ports. Runloop returns raw observations; Reflex returns raw bounded agent text. Neither provider decides whether a recovered test proves a regression.
 
 ## Candidate invariants
 
@@ -59,4 +59,4 @@ Passing parent/fix baselines, exact repetition counts, evidence identity, equiva
 
 The deterministic branch is never overwritten when it contains unrelated work. A receipt marker deduplicates open drafts; a matching non-draft is a conflict. Git objects and commit identity are deterministic, so retry after a partial branch/PR failure resumes without force-pushing or duplicating the pull request. The publisher exposes no merge operation and needs only Contents read/write plus Pull requests write; label application can also use Pull requests write.
 
-Person C composes `RecoveryCoordinator` with concrete Person A ports and owns CLI/presentation. Person B modules import frozen contracts only and contain no Runloop or Reflex SDK transport logic.
+The composition root wires `RecoveryCoordinator` to concrete transport ports and owns CLI/presentation. Core modules import frozen contracts only and contain no Runloop or Reflex SDK transport logic.

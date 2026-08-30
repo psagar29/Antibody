@@ -152,4 +152,11 @@ describe('framework classifiers', () => {
       'unrelated-test-failure',
     );
   });
+
+  it('never accepts a passing report that omitted the generated target', () => {
+    const report = 'TAP version 13\nok 1 - unrelated test\n1..1';
+    expect(classifyAttempt(attempt({report, exitCode: 0}), 'tap', ['target']).outcome).toBe(
+      'collection-failure',
+    );
+  });
 });

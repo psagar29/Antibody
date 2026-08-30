@@ -190,6 +190,24 @@ describe('GitHubDraftPublisher', () => {
     expect(fake.calls).toContain('addLabels');
   });
 
+  it('materializes publication files directly from the approved patch', async () => {
+    const fake = fakeControl();
+    const values = publishOptions();
+    const options = {
+      receipt: values.receipt,
+      approval: values.approval,
+      normalizedPatch: values.normalizedPatch,
+      baseBranch: values.baseBranch,
+      branchPrefix: values.branchPrefix,
+      labels: values.labels,
+    };
+    await expect(new GitHubDraftPublisher(fake.control).publish(options)).resolves.toMatchObject({
+      draft: true,
+      commitSha: fake.commitSha,
+    });
+    expect(fake.calls).toContain('createBlob');
+  });
+
   it.each([
     ['wrong approval', (options: ReturnType<typeof publishOptions>) => ({...options, approval: `sha256:${'f'.repeat(64)}`}), 'ANTB_PUBLISH_APPROVAL_REQUIRED'],
     ['tampered patch', (options: ReturnType<typeof publishOptions>) => ({...options, normalizedPatch: 'tampered'}), 'ANTB_PUBLISH_CONFLICT'],
