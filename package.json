@@ -58,8 +58,10 @@
     "schema:generate": "pnpm build && node scripts/generate-schemas.mjs",
     "schema:check": "pnpm build && node scripts/generate-schemas.mjs --check",
     "check": "pnpm schema:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "demo": "node dist/cli.js demo fixture --output .antibody/demo-runs && node dist/cli.js dashboard .antibody/demo-runs",
     "antibody": "node dist/cli.js",
     "package:smoke": "node scripts/package-smoke.mjs",
+    "prepare": "npm run build",
     "prepack": "pnpm schema:check"
   },
   "publishConfig": {
