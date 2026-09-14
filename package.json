@@ -73,8 +73,8 @@
     "@runloop/api-client": "1.31.0",
     "@runloop/reflex-client": "0.20.0",
     "commander": "15.0.0",
-    "ignore": "7.0.6",
-    "json-canonicalize": "3.0.0",
+    "ignore": "7.0.9",
+    "json-canonicalize": "3.0.1",
     "yaml": "2.9.0",
     "zod": "4.5.4"
   },
